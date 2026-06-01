@@ -3,6 +3,13 @@ import { getNvidiaDispatcher } from "./swarm/connection-pool";
 
 const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
 
+// Per-call chat abort budget. 45s is safe: with hedging peak concurrency is
+// <=20 (10 agents x 2 keys) << 50-conn Undici pool, so the socket-starvation
+// that motivated the old 32s no longer binds; 45s lets slow-but-valid
+// generations finish instead of degrading to a "fallback" stub. Embeddings
+// (fast endpoint) and Vision OCR (pinned) keep their own budgets.
+const CHAT_TIMEOUT_MS = Number(process.env.NVIDIA_CHAT_TIMEOUT_MS) || 45_000;
+
 type NvidiaFetchInit = RequestInit & { dispatcher?: Agent };
 function nvidiaFetchInit(init: RequestInit): NvidiaFetchInit {
   return { ...init, dispatcher: getNvidiaDispatcher() };
@@ -281,7 +288,7 @@ export async function nvidiaChat(
     max_tokens: maxTokensOverride ?? cfg.maxTokens,
     temperature: temperatureOverride ?? cfg.temperature,
     top_p: 0.9,
-  }, 32_000, task)) as { choices?: Array<{ message?: { content?: string } }> };
+  }, CHAT_TIMEOUT_MS, task)) as { choices?: Array<{ message?: { content?: string } }> };
   const content = data.choices?.[0]?.message?.content;
   if (content == null) throw new Error("NVIDIA chat returned no choices");
   return content;
@@ -292,7 +299,7 @@ export async function nvidiaChat(
 // return; the slow-key / queue tail is what makes agents miss the swarm quorum
 // wallclock, so racing 2 keys cuts that tail. Hedging changes the KEY only,
 // never the model.
-const HEDGE_TIMEOUT_MS = 32_000;
+const HEDGE_TIMEOUT_MS = CHAT_TIMEOUT_MS;
 const HEDGE_DISABLED = process.env.NVIDIA_HEDGE === "0";
 
 /** Pick up to `n` DISTINCT healthy keys for a hedged dispatch, walking the same
@@ -428,7 +435,7 @@ export async function nvidiaChatStream(
   const start = Date.now();
   let attempt = 0;
   let res: Response;
-  const timeoutMs = 32_000;
+  const timeoutMs = CHAT_TIMEOUT_MS;
 
   while (true) {
     const apiKey = getNvidiaApiKey(task);

@@ -587,6 +587,20 @@ const ROUND1_NONPRIMARY_MAX_TOKENS = 1500;
 // synthesized clinical report.
 const ROUND2_DEBATE_MAX_TOKENS = 1024;
 
+// Option C: cap the Round-1 primary (was uncapped 4096). It is compressed to
+// ~280 words before synthesis anyway, so 2048 is ample and cuts the worst-case
+// generation time that most often tripped the per-call abort.
+const ROUND1_PRIMARY_MAX_TOKENS = 2048;
+// Option B: on a per-agent timeout/throw, attempt ONE fast-model retry before
+// the local stub. A success returns a real answer whose reasoning does NOT
+// start with "fallback", so the UI shows it as a normal (faster) reply instead
+// of the "⚠ API timeout — partial result shown" banner.
+const FAST_FALLBACK_MAX_TOKENS = 1024;
+/** Pick a fast model distinct from the failed one (timeout cascade, Option B). */
+function pickFastModel(exclude: string): string {
+  return NVIDIA_SWARM_MODELS_FAST.find((m) => m !== exclude) ?? "meta/llama-3.1-8b-instruct";
+}
+
 export async function runAgent(
   model: string,
   question: string,
@@ -602,7 +616,7 @@ export async function runAgent(
   const system = buildSystemPrompt(specialty, cognitiveStrategy);
   const user = buildUserPrompt(question, context, patientContext, labText);
   const tag = cognitiveStrategy ? `${specialty.role} · ${cognitiveStrategy.strategy}` : specialty.role;
-  const maxTokens = agentIndex === 0 ? undefined : ROUND1_NONPRIMARY_MAX_TOKENS;
+  const maxTokens = agentIndex === 0 ? ROUND1_PRIMARY_MAX_TOKENS : ROUND1_NONPRIMARY_MAX_TOKENS;
 
   const rufloMsg = await callRufloApi({ model, system, question, context, evidence: matches });
   if (rufloMsg) return { model, message: rufloMsg, reasoning: `Ruflo · ${tag}`, round: 1 };
@@ -628,6 +642,13 @@ export async function runAgent(
       const message = await nvidiaChatHedged(model, system, user, undefined, maxTokens, "debate");
       return { model, message, reasoning: tag, round: 1 };
     } catch (err) {
+      if (process.env.SWARM_FAST_CASCADE !== "0") {
+        try {
+          const fast = pickFastModel(model);
+          const message = await nvidiaChat(fast, system, user, undefined, FAST_FALLBACK_MAX_TOKENS, "debate");
+          return { model, message, reasoning: `${tag} · fast:${fast.split("/").pop()}`, round: 1 };
+        } catch { /* fall through to local stub */ }
+      }
       return { model, message: buildLocalFallback(question, matches, agentIndex), reasoning: `fallback (${(err as Error).message.slice(0, 60)})`, round: 1 };
     }
   }
@@ -683,6 +704,13 @@ export async function runDebateAgent(
       const message = await nvidiaChatHedged(model, system, user, undefined, ROUND2_DEBATE_MAX_TOKENS, "debate");
       return { model, message, reasoning: tag, round: 2 };
     } catch (err) {
+      if (process.env.SWARM_FAST_CASCADE !== "0") {
+        try {
+          const fast = pickFastModel(model);
+          const message = await nvidiaChat(fast, system, user, undefined, FAST_FALLBACK_MAX_TOKENS, "debate");
+          return { model, message, reasoning: `${tag} · fast:${fast.split("/").pop()}`, round: 2 };
+        } catch { /* fall through to local stub */ }
+      }
       return { model, message: buildDebateFallback(question, myAssessment, peers, agentIndex), reasoning: `fallback (${(err as Error).message.slice(0, 60)})`, round: 2 };
     }
   }

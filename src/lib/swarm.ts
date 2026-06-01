@@ -40,6 +40,11 @@ export { getCognitiveStrategyForSpecialty, allocateModelsToSpecialties };
 // Re-export citation verifier (Q4)
 export { verifyAndStripOrphanCitations } from "./citation-verify";
 
+// Quality rider: synthesis is a single call OUTSIDE the latency-bounded fan-out,
+// so pinning the strongest stable model here costs no extra round-trip latency.
+// An explicit caller `model` override still wins.
+const STRONGEST_SYNTH_MODEL = "meta/llama-3.3-70b-instruct";
+
 /**
  * W87 — Clean modular orchestrator replacement for the swarm.ts monolith.
  * Retains identical parameter signatures, return types, and operational flow.
@@ -377,7 +382,7 @@ export async function runSwarm({
 
   // ── Round 3: Synthesis ───────────────────────────────────────────────────
   onSynthesisStart?.();
-  const synthesisModel = selected[0]; // primary / most capable model synthesizes
+  const synthesisModel = model ?? STRONGEST_SYNTH_MODEL; // honor explicit override, else pin strongest stable
   const answer = await runSynthesisAgent(
     synthesisModel,
     question,
