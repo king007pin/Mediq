@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/model-health",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 5 * * *"
     }
   ]
 }
