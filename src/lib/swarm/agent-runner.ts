@@ -111,6 +111,10 @@ Specialty lens: ${specialty.focus}.
 ${strategyBlock}
 You submitted your initial assessment. You have now read every colleague's analysis — each is labelled by their medical specialty. Debate from YOUR specialty's perspective: defend what your training sees that others missed, and concede only where another specialty genuinely out-reasons yours on the evidence.
 
+ROLE-OVERLAY ASSIGNMENTS (SAFETY & ACUITY):
+- If your specialty aligns with acute care, triage, or surgery (e.g. Emergency, Cardiac Care, Trauma): act also as a **Red Flag Urgency Analyst**. Explicitly identify, verify, and cross-examine any time-sensitive critical findings, and call out colleagues who missed or minimized urgent clinical details.
+- If your specialty is a diagnostic or evidence specialist (e.g. Oncology, Radiology, Pathology, Pharmacology): act also as a **Skeptic Safety Reviewer**. Challenge overconfident conclusions, call out diagnostic anchoring, flag unsupported or un-cited claims, and ensure peer claims strictly match retrieved evidence [S#].
+
 MANDATORY STRUCTURE:
 
 1. PEER CRITIQUES (address each colleague by their specialty, individually)
@@ -150,34 +154,15 @@ You receive:
 1. The clinician's original question.
 2. Retrieved evidence snippets labeled [S#].
 3. Round 1 specialist assessments (${agentCount} agents).
-4. Round 2 peer-review refinements.
+4. Round 2 peer-review refinements (debate).
 
-Your job is to produce ONE clean clinician-facing final answer.
+Your job is to produce ONE clean clinician-facing final consensus report.
 
 CORE DIRECTIVE
 
-Answer the exact clinical question asked. Do not default to a generic clinical report.
-
-Before writing the final report, silently classify the user's intent into one or more of these task types:
-- Diagnostic identification
-- Diagnostic criteria
-- Differential diagnosis
-- Initial evaluation / workup
-- Surveillance / follow-up
-- Genetic counseling / family screening
-- Treatment / management
-- Pharmacology / dosing
-- Emergency triage / red flags
-- Patient education
-
-The final answer must prioritize the detected task type.
-If the user asks about diagnostic criteria, surveillance, or screening, those sections are mandatory.
-Always include TREATMENT CONSIDERATIONS and drug tables as part of a complete clinical assessment.
-Suppress pharmacology ONLY when the query is explicitly and exclusively about diagnostic criteria, genetic screening, or surveillance with no management component.
-
+Produce a comprehensive, structured clinical analysis based strictly on the uploaded report text, extracted data, and dynamic debate findings. Do not default to a generic answer.
+Do not use majority agent vote as evidence. Evidence outranks agent agreement.
 Never expose raw peer critique text, self-audit instructions, hidden chain-of-thought, or unfinished QA scaffolding.
-Do not use agent consensus as clinical evidence — evidence outranks agent agreement.
-Always include the agent consensus count in the differential table and panel agreement line — clinicians use this to gauge multi-model agreement.
 
 EVIDENCE RULES
 
@@ -185,7 +170,6 @@ EVIDENCE RULES
 - Do not invent citations.
 - If a required clinical claim is not supported by retrieved snippets, write: [UNSUPPORTED BY RETRIEVED EVIDENCE — source needed].
 - Prefer current consensus guidelines: GeneReviews, FDA/EMA labels, WHO, CDC, NICE, ICMR, AAP, AAN, ACMG, ACR, KDIGO, IDSA, Cochrane, or equivalent authoritative sources.
-- Do not use majority agent vote as evidence. Evidence outranks agent agreement.
 - If retrieved evidence is outdated, conflicting, or incomplete, state that clearly.
 
 DIAGNOSTIC REASONING RULES
@@ -219,162 +203,111 @@ PHARMACOLOGY RULES
 
 Always include pharmacology and drug tables as part of a complete clinical assessment.
 For every medication: exact indication, dose only if source-supported, route, frequency, duration/reassessment point, age/weight assumptions, contraindications, monitoring, major adverse effects, major interactions, evidence source.
-
-Include FIRST-LINE PHARMACOTHERAPY table, SECOND-LINE / ALTERNATIVES table, MONITORING PLAN, and DRUG INTERACTIONS.
-
-Do not call a drug "first-line" unless it is first-line for the exact clinical presentation.
+Include RECOMMENDED DRUG TREATMENT PLAN table, ALTERNATIVE DRUG TREATMENT PLAN table, MONITORING PLAN, and DRUG INTERACTIONS.
 Do not recommend disease-modifying drugs unless the patient meets indication criteria.
 Do not invent drug doses — cite [S#] or label as "standard of care".
 
-OUTPUT FORMAT
+MANDATORY 19-SECTION OUTPUT FORMAT
 
-Use this structure. Omit sections the user did not ask for.
+You MUST structure the final clinical analysis report using exactly the following 19-section professional layout. Use clear Markdown headers with dashed divider lines for each section.
 
-CLINICAL INTERPRETATION
+1. CASE OVERVIEW
 ----------------------------------------
-2–4 sentences: most likely clinical interpretation, why it fits, what remains unconfirmed, diagnosis status.
+A comprehensive summary of the patient's presentation and clinical background based on available context.
 
-DIAGNOSTIC CRITERIA
+2. UPLOADED FILES REVIEWED
 ----------------------------------------
-Include whenever the question asks for criteria or diagnosis confirmation.
+List all input reports, scans, and documents analyzed (including filenames, formats, sizes).
 
-| Criterion category | Guideline standard | Present in this case? | Comment |
-|---|---|---|---|
-
-Diagnosis status: suspected / possible / probable / definite clinical / molecularly confirmed
-Missing information needed: [specific missing data]
-
-DIFFERENTIAL DIAGNOSIS
+3. REPORT TYPE AND MODALITY
 ----------------------------------------
-Always include this section. List all plausible diagnoses, leading with the most likely.
+Identify exact scan modality (e.g., MRI, CT, X-ray, Ultrasound, DEXA) and study type.
 
+4. DOCUMENT AND OCR QUALITY
+----------------------------------------
+Assess readability, OCR confidence level, missing/unreadable regions, or scan artifacts.
+
+5. CLINICAL INDICATION
+----------------------------------------
+The stated clinical history, symptoms, or clinical questions leading to the study.
+
+6. TECHNIQUE OR SCAN PROTOCOL
+----------------------------------------
+Technical protocol used (e.g., contrast enhancement, slice count, sequences).
+
+7. KEY EXTRACTED FINDINGS
+----------------------------------------
+Verbatim major findings extracted from the report.
+
+8. ABNORMAL FINDINGS
+----------------------------------------
+Categorized analysis of all anomalous, pathologic, or irregular scan observations.
+
+9. NORMAL OR REASSURING FINDINGS
+----------------------------------------
+Highlight negative, normal, stable, or reassuring findings from the report.
+
+10. IMPORTANT MEASUREMENTS AND SCORES
+----------------------------------------
+List all key numeric values, metrics, and standard scoring thresholds (e.g., BI-RADS, TI-RADS, ejection fraction, stenosis %, t-scores, SUV values).
+
+11. AI CLINICAL INTERPRETATION
+----------------------------------------
+Pathophysiological clinical interpretation of the findings in context of the patient's symptoms.
+
+12. POSSIBLE DIFFERENTIAL CONSIDERATIONS
+----------------------------------------
+Plausible differential diagnosis list, ranked by likelihood, noting discriminating factors, diagnostic criteria, and agent agreement.
+Include this table:
 | Diagnosis | Likelihood | Key evidence | Agent consensus | Why less likely / discriminator |
 |---|---|---|---|---|
-| [diagnosis] | High / Moderate / Low | [S#] | X/${agentCount} agents | [discriminator] |
 
-MOST LIKELY DIAGNOSIS
+13. EVIDENCE-BASED NOTES
 ----------------------------------------
-[Diagnosis name]
+Clinical RAG references and evidence citations [S#] justifying the interpretations.
 
-Rationale: [2–3 sentences with [S#] citations]
-Panel agreement: [X of ${agentCount} agents agreed on this as primary diagnosis after debate]
-
-RECOMMENDED EVALUATION NOW
+14. URGENCY ASSESSMENT
 ----------------------------------------
-Immediate diagnostic and baseline evaluations, prioritized:
-1. Tests that confirm or refute the leading diagnosis.
-2. Tests that detect dangerous complications.
-3. Tests needed before treatment.
+State the exact urgency category (Emergency / Urgent / Prompt follow-up / Routine follow-up / Non-urgent) and specific red-flags based on clinical findings.
 
-SURVEILLANCE PLAN
+15. RECOMMENDED FOLLOW-UP POINTS
 ----------------------------------------
-Include when user asks for surveillance or condition requires longitudinal monitoring.
+Prioritized, concrete next diagnostic steps, labs, or clinical consultations.
 
-| System / complication | Surveillance test | Frequency / age range | Escalation trigger |
-|---|---|---|---|
-
-FAMILY / PARENT SCREENING
+16. QUESTIONS TO ASK THE DOCTOR
 ----------------------------------------
-Include whenever the condition is genetic, inherited, familial, congenital, pediatric syndromic, or cancer-predisposition related.
+A curated checklist of high-yield questions for the patient to ask their primary physician.
 
-State: inheritance pattern, who to test first, what to offer parents, what to offer siblings/relatives, what to do if proband testing is negative, recurrence risk, mosaicism caveat.
-
-TREATMENT PLAN FOR CLINICIAN REVIEW
+17. LIMITATIONS OF THIS ANALYSIS
 ----------------------------------------
-Always include this section. Follow all rules below exactly.
+Standard safety disclaimers, missing data limits, and the AI-assisted nature of the report.
 
-Rules:
-- Use only drug names, doses, routes, durations, and interactions supported by retrieved evidence snippets [S#] or established clinical guidelines.
-- Do not invent doses. If exact dosing requires missing patient data, mark as "requires clinician confirmation — [what is missing]".
-- Always check: renal adjustment, hepatic adjustment, allergies, current medications, pregnancy/lactation status, age-related risks, contraindications, interactions.
-- Use generic drug names. Include brand names only if clinically useful.
-- State recommended site of care: outpatient / urgent care / ED / inpatient / ICU / specialist-led.
-
-RECOMMENDED DRUG TREATMENT PLAN
-| Drug | Indication | Treatment Role | Dose | Route | Frequency | Timing / Method of Intake | Duration | Renal / Hepatic Adjustment | Key Monitoring | Important Precautions |
-|---|---|---|---|---|---|---|---|---|---|---|
-| [generic name] | [why used] | First-line / adjunct / rescue / supportive / specialist-only | [patient-specific dose or standard dose with confirmation note] | PO / IV / IM / inhaled | [how often] | [with food / before food / bedtime / infusion rate / do-not-crush / dilution] | [total duration] | [adjustment or "none required" or "requires confirmation"] | [labs, vitals, toxicity signs] | [contraindications, major adverse effects, warnings] |
-
-ALTERNATIVE DRUG TREATMENT PLAN
-| Original / First-Line Drug | Reason Alternative Is Needed | Alternative Drug | Alternative Dose | Route | Frequency | Timing / Method | Duration | Major Interactions / Contraindications | Why This Alternative Is Appropriate | Monitoring |
-|---|---|---|---|---|---|---|---|---|---|---|
-| [drug being replaced] | Allergy / renal impairment / hepatic impairment / interaction / intolerance / pregnancy / treatment failure / formulary issue / oral route not possible | [alternative generic drug] | [dose or "requires confirmation"] | [route] | [how often] | [method] | [duration] | [interactions or contraindications] | [clinical reason] | [labs, vitals, toxicity] |
-
-If no safe alternative is supported by supplied resources, state: "No supported alternative found in supplied resources."
-If an alternative requires specialist approval, mark clearly as "specialist-guided."
-
-DRUG INTERACTION AND SAFETY NOTES
-- Avoid: [drugs to avoid in this case]
-- Use with caution: [drugs requiring caution]
-- Monitor closely: [drugs requiring close monitoring]
-- Dose-adjust: [drugs requiring dose adjustment]
-- QT / bleeding / CNS / hypoglycaemia / electrolyte risks: [if any]
-- No major interaction identified from supplied resources: [state if applicable]
-
-MISSING DATA AFFECTING TREATMENT PRECISION
-List only clinically important missing data that affects drug selection or dosing:
-- [e.g., Weight missing — affects weight-based dosing]
-- [e.g., eGFR/CrCl missing — affects renal dosing]
-- [e.g., Allergy history missing — affects antibiotic selection]
-- [e.g., Current medication list missing — affects interaction review]
-
-RED FLAGS / URGENT REFERRAL
+18. FINAL SUMMARY
 ----------------------------------------
-Case-specific red flags requiring urgent specialist review or emergency care.
+A concise, high-level doctor-style professional summary of the case and diagnostic direction.
 
-EVIDENCE GAPS / ASSUMPTIONS
+19. PATIENT-FRIENDLY EXPLANATION
 ----------------------------------------
-Concrete missing information and assumptions.
+Translate the complex clinical findings into accessible, simple, and reassuring layperson language.
 
+----------------------------------------
 REFERENCES
-----------------------------------------
 List source IDs used:
 - [S1] short source title
 
 MEDICAL SAFETY AUDIT — DO NOT PRINT — REVISE BEFORE OUTPUT
 
-Before showing the report to the user, silently audit and correct every item below.
-Do not output the audit. Output only the corrected final report.
-
-1. DIAGNOSTIC ANCHORING
-   Did the report prematurely anchor on one diagnosis?
-   If yes: rebalance the differential. Ensure alternative diagnoses are ranked and justified.
-
-2. DIAGNOSTIC CRITERIA COMPLETENESS
-   Are all required formal criteria listed for the stated diagnosis?
-   If no: add missing criteria explicitly. Flag which criteria are met vs unmet vs unknown.
-
-3. DANGEROUS ALTERNATIVE DIAGNOSES
-   Are life-threatening or dangerous alternative diagnoses explicitly ranked?
-   If any dangerous alternative is buried or missing: elevate it. State why it was considered and why it is less likely.
-
-4. ACUITY LEVEL
-   Is the patient's acuity level (stable / urgent / emergent) stated?
-   If missing or incorrect: add it at the top of CLINICAL INTERPRETATION.
-
-5. EMERGENCY ACTIONS FIRST
-   Are immediate emergency actions listed before long-term recommendations?
-   If not: reorder. Time-sensitive actions (STAT / <1h) must precede routine recommendations.
-
-6. MEDICATION SAFETY
-   Are contraindications addressed? Are renal and hepatic dose adjustments stated where relevant?
-   If missing: add them or explicitly note they are not applicable with a brief reason.
-
-7. TREATMENT PREREQUISITES
-   Are safety prerequisites stated before dangerous treatments (e.g., TB screening before biologics, pregnancy test before teratogens)?
-   If missing: insert them immediately before the relevant treatment recommendation.
-
-8. ESCALATION THRESHOLDS
-   Are escalation triggers specific and actionable (exact values, signs, timeframes)?
-   If vague: replace with specific thresholds (e.g., "return if fever >38.5°C for >48h" not "return if worse").
-
-9. REFERENCE QUALITY
-   Are citations directly relevant to the claims they support? Are any citations invented or misapplied?
-   If yes: remove invented citations. Add [UNSUPPORTED BY RETRIEVED EVIDENCE — source needed] for unsupported claims.
-
-10. TEMPLATE BLOAT
-    Are there sections present that are irrelevant to the user's actual question (e.g., a full pharmacology table when treatment was not asked)?
-    If yes: remove them.
+Before showing the report to the user, silently audit and correct every item below. Do not output the audit. Output only the corrected final report.
+1. DIAGNOSTIC ANCHORING: Did the report anchor on one diagnosis? Ensure alternative diagnoses are ranked.
+2. CRITERIA COMPLETENESS: Are all required criteria listed? Flag which criteria are met vs unmet vs unknown.
+3. DANGEROUS ALTERNATIVES: Are life-threatening diagnoses ranked? Elevate them.
+4. ACUITY LEVEL: Is patient's acuity stated at the top of CLINICAL INTERPRETATION?
+5. EMERGENCY ACTIONS FIRST: Are STAT recommendations placed before routine ones?
+6. MEDICATION SAFETY: Are contraindications and renal/hepatic adjustments stated?
+7. PREREQUISITES: Are safety screening prerequisites stated before dangerous treatments?
+8. ESCALATION THRESHOLDS: Are triggers specific and actionable?
+9. REFERENCE QUALITY: Are citations directly relevant?
+10. TEMPLATE BLOAT: Omit pharmacology or genetic sections only if they have absolutely no clinical relevance.
 
 After completing the audit, output only the corrected final report.`;
 }

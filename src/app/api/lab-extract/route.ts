@@ -68,10 +68,23 @@ function detectMimeType(buffer: Buffer, filename: string): string | null {
     }
   }
 
-  // 9. DOCX (ZIP archive starting with PK)
+  // 9. DOCX or ZIP (ZIP archive starting with PK)
   if (buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04) {
     if (filename.toLowerCase().endsWith(".docx")) {
       return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    }
+    return "application/zip";
+  }
+
+  // 10. DICOM Signature (offset 128 is "DICM")
+  if (buffer.length >= 132) {
+    if (
+      buffer[128] === 0x44 && // 'D'
+      buffer[129] === 0x49 && // 'I'
+      buffer[130] === 0x43 && // 'C'
+      buffer[131] === 0x4D    // 'M'
+    ) {
+      return "application/dicom";
     }
   }
 
@@ -98,6 +111,12 @@ function extractTextFromDoc(buffer: Buffer): string {
   return result.replace(/\s+/g, " ").trim();
 }
 
+interface FileItem {
+  name: string;
+  buffer: Buffer;
+  type: string;
+}
+
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
@@ -117,40 +136,87 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No files provided" }, { status: 400 });
   }
 
-  // ── Phase 1: read + classify every file. Images defer OCR to a batched pass. ──
-  const prepared: Prepared[] = await Promise.all(
-    files.map(async (file, idx): Promise<Prepared> => {
-      // W14: cap upload size before buffering.
-      if (file.size > MAX_LAB_BYTES) {
-        return { idx, name: file.name, error: `File ${file.name} is too large (limit 25 MB)`, status: 413 };
-      }
+  // ── Phase 0: Flatten input files, extracting ZIP files concurrently if uploaded ──
+  const items: FileItem[] = [];
+  for (const file of files) {
+    if (file.size > MAX_LAB_BYTES) {
+      return NextResponse.json({ error: `File ${file.name} is too large (limit 25 MB)` }, { status: 413 });
+    }
 
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const lower = file.name.toLowerCase();
+      const detectedMime = detectMimeType(buffer, file.name) || file.type || "";
+
+      if (detectedMime === "application/zip" || lower.endsWith(".zip")) {
+        try {
+          const JSZip = (await import("jszip")).default;
+          const zip = await JSZip.loadAsync(buffer);
+          const zipEntries = Object.entries(zip.files).filter(
+            ([name, entry]) => !entry.dir && !name.includes("__MACOSX") && !name.endsWith(".DS_Store")
+          );
+
+          await Promise.all(
+            zipEntries.map(async ([name, entry]) => {
+              const entryBuffer = await entry.async("nodebuffer");
+              items.push({
+                name,
+                buffer: entryBuffer,
+                type: "",
+              });
+            })
+          );
+        } catch (err) {
+          return NextResponse.json(
+            { error: `ZIP extraction failed on ${file.name}: ${(err as Error).message}` },
+            { status: 422 }
+          );
+        }
+      } else {
+        items.push({
+          name: file.name,
+          buffer,
+          type: file.type || "",
+        });
+      }
+    } catch (err) {
+      return NextResponse.json(
+        { error: `Failed reading input file ${file.name}: ${(err as Error).message}` },
+        { status: 500 }
+      );
+    }
+  }
+
+  if (items.length === 0) {
+    return NextResponse.json({ error: "No extractable files found" }, { status: 400 });
+  }
+
+  // ── Phase 1: read + classify every file item in parallel. Images defer OCR. ──
+  const prepared: Prepared[] = await Promise.all(
+    items.map(async (item, idx): Promise<Prepared> => {
       try {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const lower = file.name.toLowerCase();
+        const buffer = item.buffer;
+        const lower = item.name.toLowerCase();
 
         // Detect mimeType via magic bytes with client-side fallback
-        const detectedMime = detectMimeType(buffer, file.name) || file.type || "";
+        const detectedMime = detectMimeType(buffer, item.name) || item.type || "";
 
         // 1. PDF Documents
         if (detectedMime === "application/pdf" || lower.endsWith(".pdf")) {
           try {
             const text = (await textFromPdfBuffer(buffer)).slice(0, MAX_CHARS);
-            return { idx, name: file.name, text };
+            return { idx, name: item.name, text };
           } catch (err) {
             const msg = (err as Error).message;
-            // Scanned / image-only PDFs have no extractable text layer. OCR of
-            // rasterized pages needs a heavy native renderer (deferred), so give
-            // the user an actionable instruction instead of a silent empty result.
             if (/no text found/i.test(msg)) {
               return {
                 idx,
-                name: file.name,
-                error: `"${file.name}" looks like a scanned/image-only PDF with no text layer. Please upload it as an image (PNG/JPEG) so OCR can read it.`,
+                name: item.name,
+                error: `"${item.name}" looks like a scanned/image-only PDF with no text layer. Please upload it as an image (PNG/JPEG) so OCR can read it.`,
                 status: 422,
               };
             }
-            return { idx, name: file.name, error: `PDF extraction failed on ${file.name}: ${msg}`, status: 422 };
+            return { idx, name: item.name, error: `PDF extraction failed on ${item.name}: ${msg}`, status: 422 };
           }
         }
 
@@ -167,20 +233,52 @@ export async function POST(req: NextRequest) {
             });
             return {
               idx,
-              name: file.name,
+              name: item.name,
               image: { buffer: Buffer.from(convertedBuffer), mimeType: "image/jpeg" },
             };
           } catch (err) {
             return {
               idx,
-              name: file.name,
-              error: `HEIC image conversion failed on ${file.name}: ${(err as Error).message}`,
+              name: item.name,
+              error: `HEIC image conversion failed on ${item.name}: ${(err as Error).message}`,
               status: 422,
             };
           }
         }
 
-        // 3. Standard & Other Major Images (PNG, JPEG, WebP, GIF, TIFF, BMP)
+        // 3. DICOM Medical Imaging Files (.dcm)
+        const isDicom = detectedMime === "application/dicom" || lower.endsWith(".dcm");
+        if (isDicom) {
+          try {
+            const { parseDicomHeader } = await import("@/lib/dicom");
+            const meta = parseDicomHeader(buffer);
+            const formatted = [
+              `Scan Modality: ${meta.modality || "Unknown"}`,
+              `Patient Name: ${meta.patientName || "Unknown"}`,
+              `Patient ID: ${meta.patientId || "Unknown"}`,
+              `Patient Age: ${meta.patientAge || "Unknown"}`,
+              `Patient Sex: ${meta.patientSex || "Unknown"}`,
+              `Study Date: ${meta.studyDate || "Unknown"}`,
+              `Study Description: ${meta.studyDescription || "Unknown"}`,
+              `Institution Name: ${meta.institutionName || "Unknown"}`,
+              `Equipment Manufacturer: ${meta.manufacturer || "Unknown"}`,
+            ].join("\n");
+            return {
+              idx,
+              name: item.name,
+              text: `--- DICOM MEDICAL IMAGING METADATA ---\n${formatted}`,
+            };
+          } catch (err) {
+            return {
+              idx,
+              name: item.name,
+              error: `DICOM header parsing failed on ${item.name}: ${(err as Error).message}`,
+              status: 422,
+            };
+          }
+        }
+
+        // 4. Standard & Other Major Images (PNG, JPEG, WebP, GIF, TIFF, BMP)
         const isImage = detectedMime.startsWith("image/") || lower.match(/\.(png|jpe?g|webp|gif|tiff?|bmp)$/i);
         if (isImage) {
           let mimeType = detectedMime;
@@ -194,46 +292,46 @@ export async function POST(req: NextRequest) {
             else if (lower.endsWith(".bmp")) mimeType = "image/bmp";
             else mimeType = "image/jpeg";
           }
-          return { idx, name: file.name, image: { buffer, mimeType } };
+          return { idx, name: item.name, image: { buffer, mimeType } };
         }
 
-        // 4. Word Documents (.docx)
+        // 5. Word Documents (.docx)
         const isDocx = detectedMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || lower.endsWith(".docx");
         if (isDocx) {
           try {
             const mammoth = await import("mammoth");
             const result = await mammoth.extractRawText({ buffer });
             const text = result.value.slice(0, MAX_CHARS);
-            return { idx, name: file.name, text };
+            return { idx, name: item.name, text };
           } catch (err) {
-            return { idx, name: file.name, error: `Word Document extraction failed on ${file.name}: ${(err as Error).message}`, status: 422 };
+            return { idx, name: item.name, error: `Word Document extraction failed on ${item.name}: ${(err as Error).message}`, status: 422 };
           }
         }
 
-        // 5. Legacy Word Documents (.doc)
+        // 6. Legacy Word Documents (.doc)
         const isDoc = lower.endsWith(".doc");
         if (isDoc) {
           try {
             const text = extractTextFromDoc(buffer).slice(0, MAX_CHARS);
-            return { idx, name: file.name, text };
+            return { idx, name: item.name, text };
           } catch (err) {
-            return { idx, name: file.name, error: `Word Document (.doc) extraction failed on ${file.name}: ${(err as Error).message}`, status: 422 };
+            return { idx, name: item.name, error: `Word Document (.doc) extraction failed on ${item.name}: ${(err as Error).message}`, status: 422 };
           }
         }
 
-        // 6. Text Documents
+        // 7. Text Documents
         if (detectedMime.startsWith("text/") || lower.match(/\.(txt|csv|md)$/i)) {
-          return { idx, name: file.name, text: buffer.toString("utf-8").slice(0, MAX_CHARS) };
+          return { idx, name: item.name, text: buffer.toString("utf-8").slice(0, MAX_CHARS) };
         }
 
         return {
           idx,
-          name: file.name,
-          error: `Unsupported file type for ${file.name}. Upload PDF, Word (.docx, .doc), Image (PNG, JPEG, HEIC, TIFF, BMP, WebP), or text (.txt, .csv, .md) reports.`,
+          name: item.name,
+          error: `Unsupported file type for ${item.name}. Upload PDF, Word (.docx, .doc), Image (PNG, JPEG, HEIC, TIFF, BMP, WebP), DICOM (.dcm), ZIP (.zip), or text (.txt, .csv, .md) reports.`,
           status: 415,
         };
       } catch (err) {
-        return { idx, name: file.name, error: `File reading failed on ${file.name}: ${(err as Error).message}`, status: 500 };
+        return { idx, name: item.name, error: `File reading failed on ${item.name}: ${(err as Error).message}`, status: 500 };
       }
     })
   );

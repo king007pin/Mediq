@@ -917,9 +917,9 @@ export default function QueryBox() {
               {labFiles.length > 0 ? "➕ Add more files" : "📤 Upload files / images"}
             </span>
             <span className="text-[11px]" style={{ color: "var(--muted)" }}>
-              {labFiles.length > 0 ? "Select more medical reports, images, or docs to append" : "Upload PDFs, Images (PNG, JPG, HEIC, TIFF, BMP), Word Docs (.docx, .doc), or Text reports…"}
+              {labFiles.length > 0 ? "Select more medical reports, images, or docs to append" : "Upload PDFs, Images (PNG, JPG, HEIC, TIFF, BMP), Word Docs (.docx, .doc), DICOMs (.dcm), ZIPs (.zip), or Text reports…"}
             </span>
-            <input type="file" multiple accept=".pdf,.txt,.csv,.png,.jpg,.jpeg,.webp,.heic,.heif,.tiff,.bmp,.doc,.docx,.md" className="hidden" onChange={handleLabFile} />
+            <input type="file" multiple accept=".pdf,.txt,.csv,.png,.jpg,.jpeg,.webp,.heic,.heif,.tiff,.bmp,.doc,.docx,.md,.zip,.dcm" className="hidden" onChange={handleLabFile} />
           </label>
         </div>
 
