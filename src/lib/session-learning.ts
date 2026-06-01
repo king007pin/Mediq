@@ -126,7 +126,10 @@ export async function getSimilarPastCases(
 }
 
 // Get learning stats for admin panel
-export async function getLearningStats() {
+/** Recent Sessions are paginated (admin UI shows one page at a time). */
+export const RECENT_SESSIONS_PAGE_SIZE = 10;
+
+export async function getLearningStats(sessionsPage = 1) {
   const [totalSessionsRow] = await db
     .select({ count: sql<number>`count(*)` })
     .from(querySessions);
@@ -151,6 +154,7 @@ export async function getLearningStats() {
     .orderBy(desc(knowledgeGaps.queryCount))
     .limit(10);
 
+  const page = Math.max(1, Math.floor(sessionsPage) || 1);
   const recentSessionsRaw = await db
     .select({
       id: querySessions.id,
@@ -162,7 +166,8 @@ export async function getLearningStats() {
     })
     .from(querySessions)
     .orderBy(desc(querySessions.createdAt))
-    .limit(20);
+    .limit(RECENT_SESSIONS_PAGE_SIZE)
+    .offset((page - 1) * RECENT_SESSIONS_PAGE_SIZE);
 
   // W65 — decrypted PHI columns must be scrubbed before exposure to admin UI.
   // querySessions.query and knowledgeGaps.{topic,pubmedQuery} are encryptedText
@@ -187,6 +192,8 @@ export async function getLearningStats() {
     totalFeedback: Number(totalFeedbackRow?.count ?? 0),
     recentGaps,
     recentSessions,
+    sessionsPage: page,
+    sessionsPageSize: RECENT_SESSIONS_PAGE_SIZE,
   };
 }
 

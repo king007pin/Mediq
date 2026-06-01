@@ -26,6 +26,8 @@ type Stats = {
   totalFeedback: number;
   recentGaps: Gap[];
   recentSessions: Session[];
+  sessionsPage: number;
+  sessionsPageSize: number;
 };
 
 export default function InsightsPanel() {
@@ -34,8 +36,8 @@ export default function InsightsPanel() {
   const [running, setRunning] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch("/api/admin/insights");
+  const load = useCallback(async (page = 1) => {
+    const res = await fetch(`/api/admin/insights?page=${page}`);
     const data = (await res.json()) as Stats;
     setStats(data);
     setLoading(false);
@@ -86,6 +88,8 @@ export default function InsightsPanel() {
 
   const gapResolvePct =
     stats.totalGaps > 0 ? Math.round((stats.resolvedGaps / stats.totalGaps) * 100) : 0;
+
+  const pageCount = Math.max(1, Math.ceil(stats.totalSessions / (stats.sessionsPageSize || 10)));
 
   return (
     <div className="space-y-5">
@@ -186,13 +190,30 @@ export default function InsightsPanel() {
             >
               Recent Sessions
             </p>
-            <button
-              onClick={() => void clearSessions()}
-              className="rounded-xl px-3 py-1 text-xs font-medium transition"
-              style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171" }}
-            >
-              Clear all
-            </button>
+            <div className="flex items-center gap-2">
+              {pageCount > 1 && (
+                <select
+                  value={stats.sessionsPage}
+                  onChange={(e) => void load(Number(e.target.value))}
+                  aria-label="Recent sessions page"
+                  className="rounded-xl border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--card-border)", backgroundColor: "var(--card)", color: "var(--text)" }}
+                >
+                  {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => (
+                    <option key={p} value={p}>
+                      Page {p} of {pageCount}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={() => void clearSessions()}
+                className="rounded-xl px-3 py-1 text-xs font-medium transition"
+                style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171" }}
+              >
+                Clear all
+              </button>
+            </div>
           </div>
           <div className="space-y-1.5">
             {stats.recentSessions.map((s) => (

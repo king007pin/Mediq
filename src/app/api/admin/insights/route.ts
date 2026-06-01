@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ["admin"]);
   if (auth instanceof NextResponse) return auth;
-  const stats = await getLearningStats();
+  const page = Number(req.nextUrl.searchParams.get("page")) || 1;
+  const stats = await getLearningStats(page);
   return NextResponse.json(stats);
 }
 
