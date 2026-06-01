@@ -7,9 +7,10 @@ import { type BYOKConfig, mapModelForProvider } from "../byok-resolver";
 import { logger } from "../logger";
 
 const NVIDIA_SWARM_MODELS_FAST = [
+  "meta/llama-3.1-8b-instruct",
   "mistralai/ministral-14b-instruct-2512",
-  "nvidia/nemotron-nano-12b-v2-vl",
-  "meta/llama-4-maverick-17b-128e-instruct",
+  "nvidia/nvidia-nemotron-nano-9b-v2",
+  "google/gemma-3-12b-it",
 ] as const;
 
 function truncate(text: string, len: number) {

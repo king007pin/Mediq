@@ -242,25 +242,34 @@ const MODEL_CONFIGS: Record<string, { maxTokens: number; temperature: number }> 
   "nvidia/nemotron-nano-12b-v2-vl":              { maxTokens: 2048, temperature: 0.3 },
   "nvidia/llama-3.1-nemotron-70b-instruct":      { maxTokens: 4096, temperature: 0.3 },
   "microsoft/phi-3-mini-128k-instruct":          { maxTokens: 2048, temperature: 0.2 },
+  // Fast natives added for endpoint diversification (anti-collapse roster).
+  "google/gemma-3-12b-it":                        { maxTokens: 4096, temperature: 0.3 },
+  "nv-mistralai/mistral-nemo-12b-instruct":       { maxTokens: 4096, temperature: 0.3 },
+  "nvidia/nvidia-nemotron-nano-9b-v2":            { maxTokens: 4096, temperature: 0.3 },
+  "nvidia/llama-3.1-nemotron-nano-8b-v1":         { maxTokens: 4096, temperature: 0.3 },
+  "microsoft/phi-4-mini-instruct":                { maxTokens: 2048, temperature: 0.2 },
+  "nvidia/nemotron-nano-3-30b-a3b":               { maxTokens: 4096, temperature: 0.3 },
 };
 
 export function mapUnstableModel(model: string): string {
   // Map obsolete, experimental, or custom models to active, high-performance SOTA models on build.nvidia.com
   const mappings: Record<string, string> = {
-    // Heavyweight 120B/70B models mapped to fast stable 70B
-    "nvidia/nemotron-3-super-120b-a12b":       "meta/llama-3.1-70b-instruct",
-    "nvidia/llama-3.1-nemotron-70b-instruct":  "meta/llama-3.1-70b-instruct",
-    "mistralai/mixtral-8x22b-instruct-v0.1":   "meta/llama-3.1-70b-instruct",
-    "qwen/qwen3-next-80b-a3b-instruct":        "meta/llama-3.1-70b-instruct",
+    // Heavyweight / dead models spread across DISTINCT fast endpoints so a 10-agent
+    // swarm hits ~10 backends instead of collapsing onto meta/llama-3.1-70b (which
+    // caused the per-endpoint 429s: "first 3 agents load, then the rest all fail").
+    "nvidia/nemotron-3-super-120b-a12b":       "google/gemma-3-12b-it",
+    "nvidia/llama-3.1-nemotron-70b-instruct":  "nvidia/nvidia-nemotron-nano-9b-v2",
+    "mistralai/mixtral-8x22b-instruct-v0.1":   "nv-mistralai/mistral-nemo-12b-instruct", // source ID is dead in the live catalog
+    // qwen3-next-80b-a3b runs native (A3B MoE → fast) — no mapping
     
     // Medium-weight 49B models mapped to fast stable 14B
     "nvidia/llama-3.3-nemotron-super-49b-v1":  "mistralai/ministral-14b-instruct-2512",
     
     // Mistral 14B actually works natively, so we remove its mapping to allow native execution!
     
-    // Fast lightweight models mapped to blazing fast stable 8B
-    "nvidia/nemotron-nano-12b-v2-vl":          "meta/llama-3.1-8b-instruct",
-    "meta/llama-4-maverick-17b-128e-instruct": "meta/llama-3.1-8b-instruct",
+    // Lightweight / VL / experimental models mapped to DISTINCT fast text endpoints
+    "nvidia/nemotron-nano-12b-v2-vl":          "nvidia/llama-3.1-nemotron-nano-8b-v1",
+    "meta/llama-4-maverick-17b-128e-instruct": "microsoft/phi-4-mini-instruct",
     "microsoft/phi-3-mini-128k-instruct":      "meta/llama-3.1-8b-instruct",
     
     // Primary/Oncology stays on high-quality meta/llama-3.3-70b-instruct
