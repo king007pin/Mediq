@@ -33,6 +33,9 @@ import {
   runSynthesisAgent,
 } from "./swarm/agent-runner";
 
+// Self-healing roster: demotes down/slow models to healthy peers (no-op unless MODEL_HEALTH_AUTO=1)
+import { healthFilter } from "./model-health";
+
 // Re-export shared types and helpers for external API integrity (W87)
 export type { AgentReply, MatchMeta, SpecialtyMeta };
 export { getCognitiveStrategyForSpecialty, allocateModelsToSpecialties };
@@ -318,6 +321,10 @@ export async function runSwarm({
   if (model) {
     selected = [model, ...selected.filter((m) => m !== model)].slice(0, selected.length);
   }
+
+  // Self-healing: swap out any model currently classified down/slow for a healthy
+  // peer. No-op (identity) unless MODEL_HEALTH_AUTO=1; never throws.
+  selected = await healthFilter(selected);
 
   const byokLabel = providerOverride ? ` [BYOK: ${providerOverride.provider.name}]` : "";
   logger.info(`[AI Swarm Router] Routed query to ${selected.length} agents.${byokLabel} Departments: ${hospitalDepts.join(", ")}, PG Subjects: ${pgSubjs.join(", ")}`);
