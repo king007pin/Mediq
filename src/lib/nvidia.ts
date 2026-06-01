@@ -20,15 +20,15 @@ export const NVIDIA_EMBED_DIMS = 1024;
 
 export const NVIDIA_SWARM_MODELS = [
   "meta/llama-3.3-70b-instruct",                 // primary / synthesis anchor — IM attending, 70B
-  "openai/gpt-oss-120b",                          // oncology/complex staging, 120B
-  "meta/llama-4-maverick-17b-128e-instruct",      // emergency/acute triage, Llama 4 MoE
-  "qwen/qwen3-next-80b-a3b-instruct",             // neurology / stepwise reasoning, 80B MoE
-  "mistralai/ministral-14b-instruct-2512",        // infectious disease / fast, 14B
-  "nvidia/nemotron-3-super-120b-a12b",            // endocrinology / metabolic unifier, 120B NVIDIA
-  "nvidia/nemotron-nano-12b-v2-vl",              // general practice / fast triage, 12B
-  "mistralai/mixtral-8x22b-instruct-v0.1",   // rheumatology / step-by-step pathophysiology, 8x22B MoE
-  "nvidia/llama-3.3-nemotron-super-49b-v1",      // critical care / physiological pattern, 49B fast
-  "nvidia/llama-3.1-nemotron-70b-instruct",                 // hematology / evidence-quality grader, 70B fast
+  "meta/llama-3.1-8b-instruct",                  // renal care / fast, 8B
+  "mistralai/ministral-14b-instruct-2512",        // system entryway / fast, 14B
+  "nv-mistralai/mistral-nemo-12b-instruct",       // orthopaedics / rheumatology, 12B
+  "nvidia/nvidia-nemotron-nano-9b-v2",            // clinical pathology / metabolic, 9B
+  "nvidia/llama-3.1-nemotron-nano-8b-v1",         // diagnostic radiology / fast, 8B
+  "google/gemma-3-12b-it",                        // gastrosciences / gastroenterology, 12B
+  "microsoft/phi-4-mini-instruct",                // emergency specialist / fast, mini
+  "qwen/qwen3-next-80b-a3b-instruct",             // neurosciences / neurological reasoning, 80B MoE
+  "nvidia/nemotron-nano-3-30b-a3b"                // cardiac care / cardiovascular, 30B MoE
 ] as const;
 
 export type NvidiaModel = (typeof NVIDIA_SWARM_MODELS)[number];
