@@ -598,7 +598,11 @@ export async function ocrImages(images: OcrImage[]): Promise<string[]> {
                 content: [
                   {
                     type: "text",
-                    text: "You are an expert clinical document transcriptionist. Transcribe all text, handwritten notes, prescriptions, and lab values from this medical image. Keep all formatting, structural layouts, and key-values exactly as written. Return ONLY the transcribed text. Do not add any greetings, conversational filler, or commentary.",
+                    text: "You are a clinical AI diagnostic specialist and medical document transcriptionist. Analyze the provided medical image. " +
+                          "1. If the image is a TEXTUAL DOCUMENT (e.g., printed/handwritten prescription, clinical letter, lab report page, table of numbers): " +
+                          "Transcribe all text, handwritten notes, prescriptions, and values exactly as written. Keep all formatting, structural layouts, and key-values exactly as written. Return ONLY the transcribed text. Do not add any greetings, conversational filler, or commentary. " +
+                          "2. If the image is a MEDICAL SCAN / VISUAL DIAGNOSTIC IMAGE (e.g., Chest X-ray, CT slice, MRI scan, Ultrasound, Mammogram, Pathology slide, Electrocardiogram chart, DEXA scan page): " +
+                          "Perform a thorough clinical visual analysis of the scan. Identify the modality (e.g., X-ray, MRI, CT), body region/organ, and view. Detail any visible abnormalities, lesions, structural changes, or significant clinical features using standard medical terminology. Write a professional clinical findings and impression report. Highlight any potentially critical or life-threatening visual findings (e.g., pneumothorax, mass effect, acute bleed). Return ONLY the clinical findings and impression report. Do not add any greetings, conversational filler, or commentary.",
                   },
                   {
                     type: "image_url",
