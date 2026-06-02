@@ -450,6 +450,65 @@ export default function QueryBox() {
 
   const getCacheKey = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
 
+  async function compressImageForOcr(file: File): Promise<File> {
+    if (!file.type.startsWith("image/") || file.type === "image/gif") {
+      return file;
+    }
+    return new Promise<File>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const MAX_DIM = 2000;
+          let width = img.width;
+          let height = img.height;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              const extension = file.name.split(".").pop();
+              const hasValidExtension = extension && ["jpg", "jpeg", "png", "webp", "tiff", "bmp"].includes(extension.toLowerCase());
+              const newName = hasValidExtension 
+                ? file.name.replace(/\.[^/.]+$/, "") + ".jpg"
+                : file.name + ".jpg";
+              const compressedFile = new File([blob], newName, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            0.85
+          );
+        };
+        img.onerror = () => resolve(file);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function runLabExtraction(files: File[]) {
     if (files.length === 0) {
       setLabFiles([]);
@@ -460,13 +519,22 @@ export default function QueryBox() {
     }
 
     setLabError(null);
-    setLabFiles(files); // Instantly display the files in the UI list before extraction begins!
+    setLabUploading(true);
+
+    let processedFiles: File[];
+    try {
+      processedFiles = await Promise.all(files.map((f) => compressImageForOcr(f)));
+    } catch (err) {
+      console.error("Client-side image compression failed, using original files:", err);
+      processedFiles = files;
+    }
+
+    setLabFiles(processedFiles); // Instantly display the files in the UI list before extraction begins!
 
     // Identify which files need to be processed
-    const newFiles = files.filter((file) => !extractionCacheRef.current.has(getCacheKey(file)));
+    const newFiles = processedFiles.filter((file) => !extractionCacheRef.current.has(getCacheKey(file)));
 
     if (newFiles.length > 0) {
-      setLabUploading(true);
       try {
         const newExtractions = await Promise.all(
           newFiles.map(async (file) => {
@@ -497,7 +565,7 @@ export default function QueryBox() {
         setLabError((err as Error).message ?? "Upload failed — check file format.");
         setLabUploading(false);
         // Revert UI to show only the files that were successfully cached/extracted
-        const validFiles = files.filter((f) => extractionCacheRef.current.has(getCacheKey(f)));
+        const validFiles = processedFiles.filter((f) => extractionCacheRef.current.has(getCacheKey(f)));
         setLabFiles(validFiles);
         return;
       }
@@ -507,7 +575,7 @@ export default function QueryBox() {
     const combinedTexts: string[] = [];
     const combinedCriticals: LabCritical[] = [];
 
-    files.forEach((file) => {
+    processedFiles.forEach((file) => {
       const cached = extractionCacheRef.current.get(getCacheKey(file));
       if (cached) {
         combinedTexts.push(cached.text);
@@ -515,7 +583,7 @@ export default function QueryBox() {
       }
     });
 
-    setLabFiles(files);
+    setLabFiles(processedFiles);
     setLabText(combinedTexts.join("\n\n"));
     setLabCriticals(combinedCriticals);
     setLabUploading(false);
