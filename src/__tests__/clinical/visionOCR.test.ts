@@ -1,45 +1,39 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { extractTextFromImage } from "../../lib/nvidia";
 
-const OCR_ENDPOINT = "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1";
+const OCR_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-function ocrOk(detections: Array<{ text: string; x: number; y: number }>) {
+function ocrOk(text: string) {
   return {
     ok: true,
     json: async () => ({
-      data: [
+      choices: [
         {
-          index: 0,
-          text_detections: detections.map((d) => ({
-            text_prediction: { text: d.text, confidence: 0.99 },
-            bounding_box: { points: [{ x: d.x, y: d.y }] },
-          })),
+          message: {
+            content: text,
+          },
         },
       ],
     }),
   } as Response;
 }
 
-describe("extractTextFromImage — NeMo Retriever OCR (pinned)", () => {
+describe("extractTextFromImage — Llama 3.2 11B Vision (Multimodal)", () => {
   beforeEach(() => {
     vi.stubEnv("NVIDIA_API_KEY", "mock-nvidia-key");
     vi.restoreAllMocks();
   });
 
-  it("posts an inline base64 image to the pinned OCR /v1/infer endpoint and reassembles text in reading order", async () => {
+  it("posts an inline base64 image to the Vision chat completions endpoint and returns text", async () => {
     const mockImageBuffer = Buffer.from("fake-image-data-bytes");
     const mimeType = "image/png";
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      ocrOk([
-        { text: "Creatinine 0.9 mg/dL", x: 0.1, y: 0.2 },
-        { text: "Hemoglobin 14.2 g/dL", x: 0.1, y: 0.1 },
-      ]),
+      ocrOk("Hemoglobin 14.2 g/dL\nCreatinine 0.9 mg/dL")
     );
 
     const result = await extractTextFromImage(mockImageBuffer, mimeType);
 
-    // Sorted top→bottom: Hemoglobin (y=0.1) before Creatinine (y=0.2).
     expect(result).toBe("Hemoglobin 14.2 g/dL\nCreatinine 0.9 mg/dL");
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
@@ -47,33 +41,31 @@ describe("extractTextFromImage — NeMo Retriever OCR (pinned)", () => {
     expect(callUrl).toBe(OCR_ENDPOINT);
 
     const body = JSON.parse(callInit?.body as string);
-    // No `model` field — the hosted endpoint pins the model; no chat-completions shape.
-    expect(body.model).toBeUndefined();
-    expect(body.merge_levels).toEqual(["paragraph"]);
-    expect(body.input[0].type).toBe("image_url");
-    expect(body.input[0].url).toContain("data:image/png;base64,");
-    expect(body.input[0].url).toContain(mockImageBuffer.toString("base64"));
+    expect(body.model).toBe("meta/llama-3.2-11b-vision-instruct");
+    expect(body.messages[0].content[0].type).toBe("text");
+    expect(body.messages[0].content[1].type).toBe("image_url");
+    expect(body.messages[0].content[1].image_url.url).toContain("data:image/png;base64,");
+    expect(body.messages[0].content[1].image_url.url).toContain(mockImageBuffer.toString("base64"));
   });
 
-  it("retries transient failures with the SAME pinned model (no model swap)", async () => {
+  it("retries transient failures with key rotation", async () => {
     const mockImageBuffer = Buffer.from("fake-image-data-bytes");
 
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce({ ok: false, status: 429, text: async () => "Rate limit exceeded" } as Response)
-      .mockResolvedValueOnce(ocrOk([{ text: "Sepsis noted on summary", x: 0.1, y: 0.1 }]));
+      .mockResolvedValueOnce(ocrOk("Sepsis noted on summary"));
 
     const result = await extractTextFromImage(mockImageBuffer, "image/jpeg");
 
     expect(result).toBe("Sepsis noted on summary");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    // Both calls hit the same pinned OCR endpoint — never a different model.
     expect(fetchSpy.mock.calls[0][0]).toBe(OCR_ENDPOINT);
     expect(fetchSpy.mock.calls[1][0]).toBe(OCR_ENDPOINT);
-    expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).model).toBeUndefined();
+    expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).model).toBe("meta/llama-3.2-11b-vision-instruct");
   });
 
-  it("throws when OCR fails persistently — no silent substitution", async () => {
+  it("throws when OCR fails persistently", async () => {
     const mockImageBuffer = Buffer.from("fake-image-data-bytes");
 
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -83,52 +75,5 @@ describe("extractTextFromImage — NeMo Retriever OCR (pinned)", () => {
     } as Response);
 
     await expect(extractTextFromImage(mockImageBuffer, "image/png")).rejects.toThrow(/OCR.*failed/);
-  });
-
-  it("uploads heavy images full-resolution via the NVCF asset API", async () => {
-    // > 180 KB encoded → must use the asset API instead of inline base64.
-    const heavy = Buffer.alloc(140_000, 1);
-    expect(heavy.toString("base64").length).toBeGreaterThan(180_000);
-
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      // 1) create asset
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ assetId: "asset-123", uploadUrl: "https://s3.example.com/upload" }),
-      } as Response)
-      // 2) PUT bytes to presigned URL
-      .mockResolvedValueOnce({ ok: true } as Response)
-      // 3) infer referencing the asset
-      .mockResolvedValueOnce(ocrOk([{ text: "Full-res lab panel", x: 0.1, y: 0.1 }]));
-
-    const result = await extractTextFromImage(heavy, "image/jpeg");
-
-    expect(result).toBe("Full-res lab panel");
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
-
-    const [putUrl, putInit] = fetchSpy.mock.calls[1];
-    expect(putUrl).toBe("https://s3.example.com/upload");
-    expect(putInit?.method).toBe("PUT");
-
-    const [inferUrl, inferInit] = fetchSpy.mock.calls[2];
-    expect(inferUrl).toBe(OCR_ENDPOINT);
-    const headers = inferInit?.headers as Record<string, string>;
-    expect(headers["NVCF-INPUT-ASSET-REFERENCES"]).toBe("asset-123");
-    expect(JSON.parse(inferInit?.body as string).input[0].url).toContain("asset_id,asset-123");
-  });
-
-  it("throws when asset create response is missing uploadUrl — no PUT attempted", async () => {
-    const heavy = Buffer.alloc(140_000, 1);
-    expect(heavy.toString("base64").length).toBeGreaterThan(180_000);
-
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ assetId: "asset-123" }),
-    } as Response);
-
-    await expect(extractTextFromImage(heavy, "image/jpeg")).rejects.toThrow(/no assetId\/uploadUrl/);
-    // Only the create call fired — no PUT to a presigned URL.
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

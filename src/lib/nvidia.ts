@@ -529,7 +529,7 @@ export async function nvidiaChatStream(
   });
 }
 
-// ── Vision OCR — NeMo Retriever OCR v1 (PINNED) ──────────────────────────────────
+// ── Vision OCR — Llama 3.2 11B Vision (Multimodal Vision OCR) ──────────────────────────────────
 //
 // HARD CONSTRAINTS (do not relax without sign-off):
 //   • Model is PINNED to OCR_MODEL. No mapUnstableModel, no model cascade/fallback,
@@ -540,131 +540,12 @@ export async function nvidiaChatStream(
 //   • BYOK NEVER reaches OCR. There is no providerOverride parameter on purpose —
 //     OCR always uses the built-in NVIDIA vision pool even when the user has their
 //     own API key configured. Do not add an override param here.
-//   • Heavy files are sent at FULL RESOLUTION via the NVCF Asset API (no downscale).
-//     Only images whose base64 stays under the inline limit are embedded directly.
-const OCR_MODEL = "nvidia/nemoretriever-ocr-v1";
+const OCR_MODEL = process.env.NVIDIA_OCR_MODEL || "meta/llama-3.2-11b-vision-instruct";
 const OCR_ENDPOINT =
-  process.env.NVIDIA_OCR_ENDPOINT || "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1";
-const NVCF_ASSET_API = process.env.NVCF_ASSET_API || "https://api.nvcf.nvidia.com/v2/nvcf/assets";
-// NIM rejects inline base64 images above ~180 KB; larger images must use the asset API.
-const OCR_INLINE_MAX_B64 = 180_000;
-// Max small images batched into a single /v1/infer call.
-const OCR_BATCH = 4;
-// Max OCR requests in flight at once (protects the vision key pool / rate limits).
+  process.env.NVIDIA_OCR_ENDPOINT || "https://integrate.api.nvidia.com/v1/chat/completions";
 const OCR_CONCURRENCY = 5;
 
-type OcrPoint = { x: number; y: number };
-type OcrDetection = {
-  text_prediction?: { text?: string; confidence?: number };
-  bounding_box?: { points?: OcrPoint[] };
-};
-type OcrImageResult = { index?: number; text_detections?: OcrDetection[] };
-type OcrInput = { type: "image_url"; url: string };
 export type OcrImage = { buffer: Buffer; mimeType: string };
-
-/** Reassemble structured detections into reading-order text (top→bottom, left→right). */
-function reassembleOcr(result: OcrImageResult | undefined): string {
-  const dets = result?.text_detections ?? [];
-  const lines = dets.map((d) => {
-    const pts = d.bounding_box?.points ?? [];
-    const ys = pts.map((p) => p.y);
-    const xs = pts.map((p) => p.x);
-    return {
-      y: ys.length ? Math.min(...ys) : 0,
-      x: xs.length ? Math.min(...xs) : 0,
-      text: d.text_prediction?.text ?? "",
-    };
-  });
-  // Same visual row when y within a small epsilon, then order by x.
-  lines.sort((a, b) => (Math.abs(a.y - b.y) > 0.012 ? a.y - b.y : a.x - b.x));
-  return lines.map((l) => l.text).join("\n").replace(/[ \t]+\n/g, "\n").trim();
-}
-
-/** Upload a full-resolution image to the NVCF asset store. Returns the asset id.
- *  The asset is scoped to `apiKey`'s account, so the SAME key must be used for the
- *  subsequent /v1/infer call that references it. */
-async function uploadOcrAsset(buffer: Buffer, mimeType: string, apiKey: string): Promise<string> {
-  const desc = "mediq-lab-ocr";
-  const createRes = await fetch(
-    NVCF_ASSET_API,
-    nvidiaFetchInit({
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ contentType: mimeType, description: desc }),
-    }) as RequestInit,
-  );
-  if (!createRes.ok) {
-    const t = await createRes.text().catch(() => "");
-    throw new Error(`NVCF asset create failed (${createRes.status}): ${t.slice(0, 160)}`);
-  }
-  const { assetId, uploadUrl } = (await createRes.json()) as { assetId?: string; uploadUrl?: string };
-  if (!assetId || !uploadUrl) throw new Error("NVCF asset create returned no assetId/uploadUrl");
-  // PUT raw bytes to the presigned S3 URL — different host, no NVIDIA auth/dispatcher.
-  // The asset-description header MUST match the value used at create time.
-  const putRes = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": mimeType, "x-amz-meta-nvcf-asset-description": desc },
-    body: new Uint8Array(buffer),
-  });
-  if (!putRes.ok) {
-    const t = await putRes.text().catch(() => "");
-    throw new Error(`NVCF asset upload failed (${putRes.status}): ${t.slice(0, 160)}`);
-  }
-  return assetId;
-}
-
-/** POST one /v1/infer batch. `pinnedKey` forces a specific key (required when the
- *  inputs reference uploaded assets); otherwise the vision pool rotates per attempt.
- *  Retries transient failures (429/5xx) with the SAME pinned OCR model. */
-async function ocrInfer(
-  inputs: OcrInput[],
-  assetIds: string[],
-  pinnedKey?: string,
-): Promise<OcrImageResult[]> {
-  const body = JSON.stringify({ input: inputs, merge_levels: ["paragraph"] });
-  const start = Date.now();
-  const timeoutMs = 45_000;
-  let attempt = 0;
-
-  while (true) {
-    const apiKey = pinnedKey ?? getNvidiaApiKey("vision");
-    if (!apiKey) {
-      throw new Error("NVIDIA_API_KEY is not configured. Vision OCR requires an API key.");
-    }
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    };
-    if (assetIds.length > 0) headers["NVCF-INPUT-ASSET-REFERENCES"] = assetIds.join(",");
-
-    const res = await fetch(OCR_ENDPOINT, nvidiaFetchInit({ method: "POST", headers, body }) as RequestInit);
-
-    if (res.ok) {
-      markKeyHealthy(apiKey);
-      const data = (await res.json()) as { data?: OcrImageResult[] };
-      return data.data ?? [];
-    }
-
-    markKeyUnhealthy(apiKey, res.status);
-    const transient = (res.status >= 500 && res.status < 600) || res.status === 429;
-    if (transient && attempt < 3) {
-      const delay = Math.pow(2, attempt) * 500 + Math.random() * 400;
-      if (Date.now() - start + delay + 500 < timeoutMs) {
-        attempt++;
-        // SAME OCR_MODEL — rotate key only (pinnedKey stays fixed for asset-backed calls).
-        await new Promise((r) => setTimeout(r, delay));
-        continue;
-      }
-    }
-    const text = await res.text().catch(() => "");
-    throw new Error(`NVIDIA OCR (${OCR_MODEL}) failed (${res.status}): ${text.slice(0, 200)}`);
-  }
-}
 
 /** Run async tasks with a bounded concurrency, preserving result order. */
 async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, idx: number) => Promise<R>): Promise<R[]> {
@@ -681,50 +562,87 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T,
 }
 
 /**
- * OCR a batch of images with the pinned NeMo Retriever OCR model.
- * Small images are batched inline; heavy images go full-resolution via the asset API.
+ * OCR a batch of images with the pinned Llama 3.2 Vision model.
  * All requests run in parallel up to OCR_CONCURRENCY. Returns text per image, in order.
  */
 export async function ocrImages(images: OcrImage[]): Promise<string[]> {
   if (images.length === 0) return [];
   const out = new Array<string>(images.length).fill("");
 
-  // Partition by encoded size: inline-eligible vs asset-required.
-  const inlineIdx: number[] = [];
-  const assetIdx: number[] = [];
-  const b64 = images.map((img) => img.buffer.toString("base64"));
-  images.forEach((_, i) => (b64[i].length < OCR_INLINE_MAX_B64 ? inlineIdx : assetIdx).push(i));
+  await mapWithConcurrency(images, OCR_CONCURRENCY, async (img, i) => {
+    const base64 = img.buffer.toString("base64");
+    const dataUrl = `data:${img.mimeType};base64,${base64}`;
+    
+    let attempt = 0;
+    const start = Date.now();
+    const timeoutMs = 45_000;
 
-  // Chunk small images into batched /v1/infer calls.
-  const inlineChunks: number[][] = [];
-  for (let i = 0; i < inlineIdx.length; i += OCR_BATCH) inlineChunks.push(inlineIdx.slice(i, i + OCR_BATCH));
-
-  type Task = { kind: "inline"; idxs: number[] } | { kind: "asset"; idx: number };
-  const tasks: Task[] = [
-    ...inlineChunks.map((idxs) => ({ kind: "inline", idxs }) as Task),
-    ...assetIdx.map((idx) => ({ kind: "asset", idx }) as Task),
-  ];
-
-  await mapWithConcurrency(tasks, OCR_CONCURRENCY, async (task) => {
-    if (task.kind === "inline") {
-      const inputs: OcrInput[] = task.idxs.map((i) => ({
-        type: "image_url",
-        url: `data:${images[i].mimeType};base64,${b64[i]}`,
-      }));
-      const data = await ocrInfer(inputs, []);
-      task.idxs.forEach((origIdx, pos) => {
-        out[origIdx] = reassembleOcr(data[pos] ?? data.find((d) => d.index === pos));
-      });
-    } else {
-      // Heavy image: pin one key, upload full-res asset, infer with the same key.
+    while (true) {
       const apiKey = getNvidiaApiKey("vision");
-      if (!apiKey) throw new Error("NVIDIA_API_KEY is not configured. Vision OCR requires an API key.");
-      const assetId = await uploadOcrAsset(images[task.idx].buffer, images[task.idx].mimeType, apiKey);
-      const inputs: OcrInput[] = [
-        { type: "image_url", url: `data:${images[task.idx].mimeType};asset_id,${assetId}` },
-      ];
-      const data = await ocrInfer(inputs, [assetId], apiKey);
-      out[task.idx] = reassembleOcr(data[0]);
+      if (!apiKey) {
+        throw new Error("NVIDIA_API_KEY is not configured. Vision OCR requires an API key.");
+      }
+
+      try {
+        const res = await fetch(OCR_ENDPOINT, nvidiaFetchInit({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: OCR_MODEL,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "You are an expert clinical document transcriptionist. Transcribe all text, handwritten notes, prescriptions, and lab values from this medical image. Keep all formatting, structural layouts, and key-values exactly as written. Return ONLY the transcribed text. Do not add any greetings, conversational filler, or commentary.",
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: dataUrl,
+                    },
+                  },
+                ],
+              },
+            ],
+            max_tokens: 2048,
+            temperature: 0.1,
+          }),
+        }) as RequestInit);
+
+        if (res.ok) {
+          markKeyHealthy(apiKey);
+          const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+          const content = data.choices?.[0]?.message?.content ?? "";
+          out[i] = content.trim();
+          break;
+        }
+
+        markKeyUnhealthy(apiKey, res.status);
+        const transient = (res.status >= 500 && res.status < 600) || res.status === 429;
+        if (transient && attempt < 3) {
+          const delay = Math.pow(2, attempt) * 500 + Math.random() * 400;
+          if (Date.now() - start + delay + 500 < timeoutMs) {
+            attempt++;
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+        }
+        const text = await res.text().catch(() => "");
+        throw new Error(`NVIDIA OCR (${OCR_MODEL}) failed (${res.status}): ${text.slice(0, 200)}`);
+      } catch (err) {
+        if (attempt < 3 && !((err as Error).name === "AbortError")) {
+          attempt++;
+          const delay = Math.pow(2, attempt) * 500 + Math.random() * 400;
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        throw err;
+      }
     }
   });
 

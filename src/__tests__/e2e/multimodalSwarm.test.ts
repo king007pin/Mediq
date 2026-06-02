@@ -123,8 +123,9 @@ describe("Multimodal Image OCR & Swarm Query E2E Integration", () => {
       const url = typeof input === "string" ? input : input.toString();
       callCount++;
 
-      // 1. Intercept Vision OCR call — pinned NeMo Retriever OCR /v1/infer endpoint
-      if (url.includes("nemoretriever-ocr") || url.includes("/cv/nvidia/")) {
+      // 1. Intercept Vision OCR call — Llama 3.2 Vision chat completion
+      const isOcr = init?.body && typeof init.body === "string" && init.body.includes("llama-3.2-11b-vision-instruct");
+      if (isOcr || url.includes("nemoretriever-ocr") || url.includes("/cv/nvidia/")) {
         const lines = [
           "Doctor's Prescription Notes:",
           "Patient has severe crushing chest pressure.",
@@ -132,13 +133,11 @@ describe("Multimodal Image OCR & Swarm Query E2E Integration", () => {
           "potassium 7.2 mEq/L",
         ];
         return new Response(JSON.stringify({
-          data: [{
-            index: 0,
-            text_detections: lines.map((t, i) => ({
-              text_prediction: { text: t, confidence: 0.99 },
-              bounding_box: { points: [{ x: 0.1, y: 0.1 * (i + 1) }] },
-            })),
-          }],
+          choices: [{
+            message: {
+              content: lines.join("\n")
+            }
+          }]
         }), {
           status: 200,
           headers: { "Content-Type": "application/json" }
@@ -284,17 +283,16 @@ REFERENCES
     global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
 
-      // Intercept OCR calls — pinned NeMo Retriever OCR /v1/infer endpoint
-      if (url.includes("nemoretriever-ocr") || url.includes("/cv/nvidia/")) {
+      // Intercept OCR calls — Llama 3.2 Vision chat completion
+      const isOcr = init?.body && typeof init.body === "string" && init.body.includes("llama-3.2-11b-vision-instruct");
+      if (isOcr || url.includes("nemoretriever-ocr") || url.includes("/cv/nvidia/")) {
         const lines = ["Doctor's Prescription Notes:", "troponin 0.5 ng/mL", "potassium 7.2 mEq/L"];
         return new Response(JSON.stringify({
-          data: [{
-            index: 0,
-            text_detections: lines.map((t, i) => ({
-              text_prediction: { text: t, confidence: 0.99 },
-              bounding_box: { points: [{ x: 0.1, y: 0.1 * (i + 1) }] },
-            })),
-          }],
+          choices: [{
+            message: {
+              content: lines.join("\n")
+            }
+          }]
         }), {
           status: 200,
           headers: { "Content-Type": "application/json" }
