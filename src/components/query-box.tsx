@@ -967,7 +967,26 @@ export default function QueryBox() {
               </div>
               <div className="flex items-center justify-between border-t pt-1.5 text-[11px]" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
                 {labUploading ? (
-                  <span className="text-xs sm:text-sm font-medium" style={{ color: "var(--muted)" }}>Extracting texts from {labFiles.length} files…</span>
+                  (() => {
+                    const isImg = (f: File) => f.type.startsWith("image/") || /\.(jpg|jpeg|png|webp|heic|heif|bmp|tiff|gif)$/i.test(f.name);
+                    const imageCount = labFiles.filter(isImg).length;
+                    const textCount = labFiles.filter(f => !isImg(f)).length;
+                    let statusText = "Processing files…";
+                    if (imageCount > 0 && textCount === 0) {
+                      statusText = imageCount === 1 ? "Analysing your scan…" : "Analysing your scans…";
+                    } else if (imageCount > 0 && textCount > 0) {
+                      statusText = imageCount === 1 
+                        ? "Analysing your scan and extracting the text…" 
+                        : "Analysing your scans and extracting the text…";
+                    } else if (imageCount === 0 && textCount > 0) {
+                      statusText = "Extracting the text…";
+                    }
+                    return (
+                      <span className="text-xs sm:text-sm font-medium" style={{ color: "var(--muted)" }}>
+                        {statusText}
+                      </span>
+                    );
+                  })()
                 ) : (
                   <>
                     {labText && <span style={{ color: "#4ade80" }}>✓ {labText.length.toLocaleString()} total chars extracted</span>}
