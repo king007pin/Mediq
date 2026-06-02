@@ -124,7 +124,7 @@ describe("Multimodal Image OCR & Swarm Query E2E Integration", () => {
       callCount++;
 
       // 1. Intercept Vision OCR call — Llama 3.2 Vision chat completion
-      const isOcr = init?.body && typeof init.body === "string" && init.body.includes("llama-3.2-11b-vision-instruct");
+      const isOcr = init?.body && typeof init.body === "string" && init.body.includes("llama-3.2-90b-vision-instruct");
       if (isOcr || url.includes("nemoretriever-ocr") || url.includes("/cv/nvidia/")) {
         const lines = [
           "Doctor's Prescription Notes:",
@@ -284,7 +284,7 @@ REFERENCES
       const url = typeof input === "string" ? input : input.toString();
 
       // Intercept OCR calls — Llama 3.2 Vision chat completion
-      const isOcr = init?.body && typeof init.body === "string" && init.body.includes("llama-3.2-11b-vision-instruct");
+      const isOcr = init?.body && typeof init.body === "string" && init.body.includes("llama-3.2-90b-vision-instruct");
       if (isOcr || url.includes("nemoretriever-ocr") || url.includes("/cv/nvidia/")) {
         const lines = ["Doctor's Prescription Notes:", "troponin 0.5 ng/mL", "potassium 7.2 mEq/L"];
         return new Response(JSON.stringify({
