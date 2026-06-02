@@ -41,7 +41,7 @@ describe("extractTextFromImage — Llama 3.2 11B Vision (Multimodal)", () => {
     expect(callUrl).toBe(OCR_ENDPOINT);
 
     const body = JSON.parse(callInit?.body as string);
-    expect(body.model).toBe("meta/llama-3.2-11b-vision-instruct");
+    expect(body.model).toBe("meta/llama-3.2-90b-vision-instruct");
     expect(body.messages[0].content[0].type).toBe("text");
     expect(body.messages[0].content[1].type).toBe("image_url");
     expect(body.messages[0].content[1].image_url.url).toContain("data:image/png;base64,");
@@ -62,7 +62,7 @@ describe("extractTextFromImage — Llama 3.2 11B Vision (Multimodal)", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(fetchSpy.mock.calls[0][0]).toBe(OCR_ENDPOINT);
     expect(fetchSpy.mock.calls[1][0]).toBe(OCR_ENDPOINT);
-    expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).model).toBe("meta/llama-3.2-11b-vision-instruct");
+    expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string).model).toBe("meta/llama-3.2-90b-vision-instruct");
   });
 
   it("throws when OCR fails persistently", async () => {
