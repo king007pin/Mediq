@@ -408,6 +408,7 @@ export default function QueryBox() {
   const [labCriticals, setLabCriticals] = useState<LabCritical[]>([]);
   const [labUploading, setLabUploading] = useState(false);
   const [labError, setLabError] = useState<string | null>(null);
+  const [expandedFileIdx, setExpandedFileIdx] = useState<number | null>(null);
   const [synthesisStream, setSynthesisStream] = useState("");
 
   const [mode, setMode] = useState<"nvidia" | "multi">("nvidia");
@@ -916,26 +917,53 @@ export default function QueryBox() {
           {labFiles.length > 0 && (
             <div className="rounded-xl border px-3 py-2.5 text-xs space-y-2"
               style={{ borderColor: "var(--card-border)", backgroundColor: "var(--card)" }}>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                {labFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between border-b pb-1 last:border-0 last:pb-0 py-0.5" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                    <div className="flex items-center gap-2 truncate pr-2">
-                      <span style={{ color: "var(--accent)" }}>
-                        {file.type.startsWith("image/") ? "🖼️" : file.type === "application/pdf" ? "📕" : "📄"}
-                      </span>
-                      <span className="font-medium truncate" style={{ color: "var(--text)" }}>{file.name}</span>
+              <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                {labFiles.map((file, idx) => {
+                  const hasText = !!extractionCacheRef.current.get(getCacheKey(file))?.text;
+                  const isExpanded = expandedFileIdx === idx;
+                  return (
+                    <div key={idx} className="border-b pb-2 last:border-0 last:pb-0 py-1.5" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 truncate pr-2 cursor-pointer" onClick={() => setExpandedFileIdx(isExpanded ? null : idx)}>
+                          <span style={{ color: "var(--accent)" }}>
+                            {file.type.startsWith("image/") ? "🖼️" : file.type === "application/pdf" ? "📕" : "📄"}
+                          </span>
+                          <span className="font-medium truncate hover:underline" style={{ color: "var(--text)" }}>{file.name}</span>
+                          {hasText && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 font-bold uppercase tracking-wider scale-90">
+                              Analyzed
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>({(file.size / 1024).toFixed(1)} KB)</span>
+                          {hasText && (
+                            <button type="button" onClick={() => setExpandedFileIdx(isExpanded ? null : idx)}
+                              className="text-[10px] px-1.5 py-0.5 rounded hover:bg-zinc-800 transition"
+                              style={{ color: "var(--accent)" }}>
+                              {isExpanded ? "Hide" : "Review Findings"}
+                            </button>
+                          )}
+                          <button type="button" onClick={() => void removeLabFile(idx)}
+                            className="text-[11px] px-1 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors active:scale-95"
+                            style={{ color: "var(--muted)" }}
+                            title="Remove file">
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                      {isExpanded && hasText && (
+                        <div className="mt-2 rounded-lg p-3 text-xs leading-relaxed overflow-x-auto border font-sans whitespace-pre-wrap"
+                          style={{ backgroundColor: "var(--bg)", borderColor: "var(--card-border)", color: "var(--text)" }}>
+                          <div className="text-[10px] uppercase font-bold tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>
+                            AI Visual / Document Extraction Findings
+                          </div>
+                          {extractionCacheRef.current.get(getCacheKey(file))?.text}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px]" style={{ color: "var(--muted)" }}>({(file.size / 1024).toFixed(1)} KB)</span>
-                      <button type="button" onClick={() => void removeLabFile(idx)}
-                        className="text-[11px] px-1 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors active:scale-95"
-                        style={{ color: "var(--muted)" }}
-                        title="Remove file">
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="flex items-center justify-between border-t pt-1.5 text-[11px]" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
                 {labUploading ? (
@@ -943,7 +971,7 @@ export default function QueryBox() {
                 ) : (
                   <>
                     {labText && <span style={{ color: "#4ade80" }}>✓ {labText.length.toLocaleString()} total chars extracted</span>}
-                    <button type="button" onClick={() => { setLabFiles([]); setLabText(""); setLabCriticals([]); setLabError(null); }}
+                    <button type="button" onClick={() => { setLabFiles([]); setLabText(""); setLabCriticals([]); setLabError(null); setExpandedFileIdx(null); }}
                       className="text-[10px] hover:underline" style={{ color: "#f87171" }}>
                       Clear
                     </button>
