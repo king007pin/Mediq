@@ -2,6 +2,60 @@
 
 import React from "react";
 
+function renderFormattedText(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\[S\d+\]|\[PC\d+\])/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={idx} className="font-semibold text-slate-800 dark:text-slate-100">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (/^\[S\d+\]$/.test(part)) {
+      return (
+        <span key={idx} className="font-semibold text-emerald-500 dark:text-emerald-400">
+          {part}
+        </span>
+      );
+    }
+    if (/^\[PC\d+\]$/.test(part)) {
+      return (
+        <span key={idx} className="font-semibold text-blue-500 dark:text-blue-400">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+function parseHeader(l: string): { isHeader: boolean; cleanText: string } {
+  let clean = l.trim();
+  
+  // 1. Remove markdown heading prefixes (e.g. ###, ##, #)
+  if (clean.startsWith("#")) {
+    clean = clean.replace(/^#+\s*/, "").trim();
+    return { isHeader: true, cleanText: clean };
+  }
+
+  // 2. Remove leading number pattern like "1. ", "10. ", "◆ "
+  let textWithoutNumber = clean;
+  const numberMatch = clean.match(/^(\d+[\.\s]+|◆\s*)/);
+  if (numberMatch) {
+    textWithoutNumber = clean.slice(numberMatch[0].length).trim();
+  }
+
+  // 3. Check if what remains is a valid section heading.
+  // It is a valid header if it's all uppercase and is of reasonable length (3 to 80 chars)
+  const isAllCaps = /^[A-Z\d\s&\/\-–—:().,]+$/.test(textWithoutNumber) && textWithoutNumber.length >= 3;
+  if (isAllCaps && clean.length >= 3 && clean.length <= 80) {
+    return { isHeader: true, cleanText: clean };
+  }
+
+  return { isHeader: false, cleanText: "" };
+}
+
 function ReportTable({ lines }: { lines: string[] }) {
   const parseRow = (line: string) =>
     line.split("|").slice(1, -1).map((c) => c.trim());
@@ -37,7 +91,7 @@ function ReportTable({ lines }: { lines: string[] }) {
               {row.map((cell, ci) => (
                 <td key={ci} className="px-4 py-2.5 text-[13px] leading-relaxed"
                   style={{ color: ci === 0 ? "var(--text)" : "var(--muted)" }}>
-                  {cell}
+                  {renderFormattedText(cell)}
                 </td>
               ))}
             </tr>
@@ -54,8 +108,6 @@ export function ReportView({ text }: { text: string }) {
   let i = 0;
   let key = 0;
 
-  const isAllCapsHeader = (l: string) =>
-    /^[A-Z][A-Z\s\d&\/\-–—:()]+$/.test(l.trim()) && l.trim().length >= 4 && l.trim().length <= 60;
   const isDashLine = (l: string) => /^[-─═]+$/.test(l.trim()) && l.trim().length >= 8;
   const isTableLine = (l: string) => l.trim().startsWith("|");
   const isNumbered = (l: string) => /^\d+\.\s{1,3}/.test(l.trim());
@@ -80,14 +132,15 @@ export function ReportView({ text }: { text: string }) {
     // Dash separator → skip (visual handled by header spacing)
     if (isDashLine(line)) { i++; continue; }
 
-    // ALL CAPS section header
-    if (isAllCapsHeader(line)) {
+    // Section header check
+    const headerInfo = parseHeader(line);
+    if (headerInfo.isHeader) {
       elements.push(
         <div key={key++} className="mt-7 mb-3">
           <div className="flex items-center gap-3">
             <span className="text-base leading-none" style={{ color: "var(--accent)" }}>◆</span>
             <p className="text-[15px] font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
-              {line.trim()}
+              {headerInfo.cleanText}
             </p>
           </div>
           <div className="h-px mt-2" style={{ backgroundColor: "rgba(13,148,136,0.25)" }} />
@@ -101,7 +154,7 @@ export function ReportView({ text }: { text: string }) {
     if (isNumbered(line)) {
       elements.push(
         <p key={key++} className="text-[13px] leading-6 pl-5 my-1" style={{ color: "var(--text)" }}>
-          {line.trim()}
+          {renderFormattedText(line.trim())}
         </p>
       );
       i++;
@@ -113,7 +166,7 @@ export function ReportView({ text }: { text: string }) {
       elements.push(
         <p key={key++} className="text-[13px] leading-6 pl-5 my-1 flex gap-3" style={{ color: "var(--muted)" }}>
           <span className="mt-0.5 shrink-0 text-sm" style={{ color: "var(--accent)" }}>–</span>
-          <span>{line.trim().replace(/^[-•]\s{1,3}/, "")}</span>
+          <span>{renderFormattedText(line.trim().replace(/^[-•]\s{1,3}/, ""))}</span>
         </p>
       );
       i++;
@@ -123,7 +176,7 @@ export function ReportView({ text }: { text: string }) {
     // Regular line
     elements.push(
       <p key={key++} className="text-[13px] leading-6 my-1" style={{ color: "var(--text)" }}>
-        {line}
+        {renderFormattedText(line)}
       </p>
     );
     i++;
