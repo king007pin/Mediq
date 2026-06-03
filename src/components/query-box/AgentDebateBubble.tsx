@@ -129,13 +129,10 @@ export function AgentDebateBubble({
       return MODEL_STRATEGY_LABELS[agent.model];
     }
     const parts = agent.reasoning.split(" · ");
-    let strategyPart = "";
     if (parts[0] === "Ruflo" || parts[0] === "local") {
-      strategyPart = parts[2] || "";
-    } else {
-      strategyPart = parts[1] || "";
+      return parts.slice(2).join(" · ");
     }
-    return strategyPart;
+    return parts.slice(1).join(" · ");
   }, [agent]);
 
   const sections = agent ? parseAgentSections(agent.message) : [];
@@ -167,12 +164,12 @@ export function AgentDebateBubble({
           <div className="min-w-0">
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold" style={{ color: "var(--text)" }}>
-                  {displayRole}
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>
+                  {(role || parsedRole || "Clinical Specialist").toUpperCase()}
                 </span>
                 {agent && (
                   <span
-                    className="text-[9px] rounded-full px-1.5 py-0.2"
+                    className="text-[9px] font-medium uppercase rounded-full px-1.5 py-0.2"
                     style={{
                       backgroundColor: "var(--card)",
                       color: color.dot,
@@ -183,11 +180,9 @@ export function AgentDebateBubble({
                   </span>
                 )}
               </div>
-              {displayRole !== label && (
-                <span className="text-[10px] font-normal leading-tight" style={{ color: "var(--muted)" }}>
-                  {label}
-                </span>
-              )}
+              <span className="text-[10px] font-normal leading-tight" style={{ color: "var(--muted)" }}>
+                {label}
+              </span>
             </div>
             {strategy && strategy !== displayRole && (
               <p className="mt-0.5 text-[10px]" style={{ color: "var(--muted)" }}>
