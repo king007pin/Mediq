@@ -540,7 +540,7 @@ export async function nvidiaChatStream(
 //   • BYOK NEVER reaches OCR. There is no providerOverride parameter on purpose —
 //     OCR always uses the built-in NVIDIA vision pool even when the user has their
 //     own API key configured. Do not add an override param here.
-const OCR_MODEL = process.env.NVIDIA_OCR_MODEL || "meta/llama-3.2-90b-vision-instruct";
+const OCR_MODEL = process.env.NVIDIA_OCR_MODEL || "nvidia/nemotron-nano-12b-v2-vl";
 const OCR_ENDPOINT =
   process.env.NVIDIA_OCR_ENDPOINT || "https://integrate.api.nvidia.com/v1/chat/completions";
 const OCR_CONCURRENCY = 5;
