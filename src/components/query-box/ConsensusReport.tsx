@@ -78,7 +78,7 @@ function ReportTable({ lines }: { lines: string[] }) {
         <thead>
           <tr style={{ backgroundColor: "rgba(13,148,136,0.08)" }}>
             {headers.map((h, i) => (
-              <th key={i} className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider"
+              <th key={i} className="px-4 py-2.5 text-left text-[13px] font-bold uppercase tracking-wider"
                 style={{ color: "var(--accent)", borderBottom: "1px solid var(--card-border)" }}>
                 {h}
               </th>
@@ -89,7 +89,7 @@ function ReportTable({ lines }: { lines: string[] }) {
           {dataRows.map((row, ri) => (
             <tr key={ri} style={{ borderBottom: "1px solid var(--card-border)" }}>
               {row.map((cell, ci) => (
-                <td key={ci} className="px-4 py-2.5 text-[13px] leading-relaxed"
+                <td key={ci} className="px-4 py-2.5 text-[15px] leading-relaxed"
                   style={{ color: ci === 0 ? "var(--text)" : "var(--muted)" }}>
                   {renderFormattedText(cell)}
                 </td>
@@ -132,18 +132,17 @@ export function ReportView({ text }: { text: string }) {
     // Dash separator → skip (visual handled by header spacing)
     if (isDashLine(line)) { i++; continue; }
 
-    // Section header check
     const headerInfo = parseHeader(line);
     if (headerInfo.isHeader) {
+      let title = headerInfo.cleanText.trim();
+      if (title.startsWith("•") || title.startsWith("–") || title.startsWith("-")) {
+        title = title.slice(1).trim();
+      }
       elements.push(
         <div key={key++} className="mt-7 mb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-base leading-none" style={{ color: "var(--accent)" }}>◆</span>
-            <p className="text-[15px] font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
-              {headerInfo.cleanText}
-            </p>
-          </div>
-          <div className="h-px mt-2" style={{ backgroundColor: "rgba(13,148,136,0.25)" }} />
+          <p className="text-[17px] font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
+            {title}
+          </p>
         </div>
       );
       i++;
@@ -153,7 +152,7 @@ export function ReportView({ text }: { text: string }) {
     // Numbered list
     if (isNumbered(line)) {
       elements.push(
-        <p key={key++} className="text-[13px] leading-6 pl-5 my-1" style={{ color: "var(--text)" }}>
+        <p key={key++} className="text-[15px] leading-6 pl-5 my-1" style={{ color: "var(--text)" }}>
           {renderFormattedText(line.trim())}
         </p>
       );
@@ -164,8 +163,8 @@ export function ReportView({ text }: { text: string }) {
     // Bullet list
     if (isBullet(line)) {
       elements.push(
-        <p key={key++} className="text-[13px] leading-6 pl-5 my-1 flex gap-3" style={{ color: "var(--muted)" }}>
-          <span className="mt-0.5 shrink-0 text-sm" style={{ color: "var(--accent)" }}>–</span>
+        <p key={key++} className="text-[15px] leading-6 pl-5 my-1 flex gap-3" style={{ color: "var(--muted)" }}>
+          <span className="mt-0.5 shrink-0 text-base font-semibold" style={{ color: "var(--accent)" }}>–</span>
           <span>{renderFormattedText(line.trim().replace(/^[-•]\s{1,3}/, ""))}</span>
         </p>
       );
@@ -175,7 +174,7 @@ export function ReportView({ text }: { text: string }) {
 
     // Regular line
     elements.push(
-      <p key={key++} className="text-[13px] leading-6 my-1" style={{ color: "var(--text)" }}>
+      <p key={key++} className="text-[15px] leading-6 my-1" style={{ color: "var(--text)" }}>
         {renderFormattedText(line)}
       </p>
     );

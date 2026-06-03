@@ -207,8 +207,8 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
   let i = 0;
 
   // Table layout constants
-  const CELL_FS = 8;
-  const CELL_LINE_H = 4.2;   // mm per line at 8pt
+  const CELL_FS = 10;
+  const CELL_LINE_H = 5.0;   // mm per line at 10pt
   const CELL_TPAD = 2.8;     // row-top → first baseline
   const CELL_BPAD = 2.2;     // last baseline → row-bottom
   const CELL_HPad = 2.5;     // horizontal cell padding
@@ -312,7 +312,7 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
 
     if (isAllCapsHeader(line)) {
       checkY(10); y += 3;
-      doc.setFont("times", "bold"); doc.setFontSize(11); tc(TEAL);
+      doc.setFont("times", "bold"); doc.setFontSize(13); tc(TEAL);
       let clean = line.trim();
       if (clean.startsWith("#")) {
         clean = clean.replace(/^#+\s*/, "").trim();
@@ -320,37 +320,34 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
       if (clean.startsWith("•") || clean.startsWith("–") || clean.startsWith("-")) {
         clean = clean.slice(1).trim();
       }
-      const hText = `• ${clean}`;
-      doc.text(hText, ML, y);
-      const tw = doc.getTextWidth(hText);
-      dc(TEAL); doc.setLineWidth(0.3); doc.line(ML, y + 1.1, ML + tw, y + 1.1);
+      doc.text(clean, ML, y);
       y += 6; i++;
       continue;
     }
 
     if (isNumList(line)) {
       const wrapped = doc.splitTextToSize(line.trim(), CW - 5) as string[];
-      checkY(wrapped.length * 4.5 + 1);
-      doc.setFont("times", "normal"); doc.setFontSize(9.5); tc(DARK);
-      wrapped.forEach((wl, wi) => { doc.text(wl, ML + (wi > 0 ? 6 : 3), y); y += 4.5; });
+      checkY(wrapped.length * 5.2 + 1);
+      doc.setFont("times", "normal"); doc.setFontSize(11.5); tc(DARK);
+      wrapped.forEach((wl, wi) => { doc.text(wl, ML + (wi > 0 ? 6 : 3), y); y += 5.2; });
       i++; continue;
     }
 
     if (isBull(line)) {
       const content = line.trim().replace(/^[-•]\s{1,3}/, "");
       const wrapped = doc.splitTextToSize(content, CW - 9) as string[];
-      checkY(wrapped.length * 4.5 + 1);
-      doc.setFont("times", "normal"); doc.setFontSize(9.5);
+      checkY(wrapped.length * 5.2 + 1);
+      doc.setFont("times", "normal"); doc.setFontSize(11.5);
       tc(TEAL); doc.text("–", ML + 2, y);
       tc(MUTED);
-      wrapped.forEach((wl, wi) => { if (wi > 0) checkY(4.5); doc.text(wl, ML + 7, y); y += 4.5; });
+      wrapped.forEach((wl, wi) => { if (wi > 0) checkY(5.2); doc.text(wl, ML + 7, y); y += 5.2; });
       i++; continue;
     }
 
     const wrapped = doc.splitTextToSize(line, CW) as string[];
-    checkY(wrapped.length * 4.5 + 1);
-    doc.setFont("times", "normal"); doc.setFontSize(9.5); tc(DARK);
-    wrapped.forEach(wl => { doc.text(wl, ML, y); y += 4.5; });
+    checkY(wrapped.length * 5.2 + 1);
+    doc.setFont("times", "normal"); doc.setFontSize(11.5); tc(DARK);
+    wrapped.forEach(wl => { doc.text(wl, ML, y); y += 5.2; });
     i++;
   }
 
