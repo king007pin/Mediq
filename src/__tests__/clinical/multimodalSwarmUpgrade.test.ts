@@ -162,20 +162,22 @@ describe("Swarm Specialization Upgrades — Debate & Synthesis Prompts", () => {
     expect(prompt).toContain("Skeptic Safety Reviewer");
   });
 
-  it("synthesis prompt strictly enforces the 19-section clinical document layout", () => {
+  it("synthesis prompt strictly enforces the 13-section clinical document layout", () => {
     const prompt = buildSynthesisSystemPrompt(5);
 
-    expect(prompt).toContain("MANDATORY 19-SECTION OUTPUT FORMAT");
-    expect(prompt).toContain("1. CASE OVERVIEW");
-    expect(prompt).toContain("2. UPLOADED FILES REVIEWED");
-    expect(prompt).toContain("3. REPORT TYPE AND MODALITY");
-    expect(prompt).toContain("4. DOCUMENT AND OCR QUALITY");
-    expect(prompt).toContain("7. KEY EXTRACTED FINDINGS");
-    expect(prompt).toContain("10. IMPORTANT MEASUREMENTS AND SCORES");
-    expect(prompt).toContain("11. AI CLINICAL INTERPRETATION");
-    expect(prompt).toContain("12. POSSIBLE DIFFERENTIAL CONSIDERATIONS");
-    expect(prompt).toContain("14. URGENCY ASSESSMENT");
-    expect(prompt).toContain("18. FINAL SUMMARY");
-    expect(prompt).toContain("19. PATIENT-FRIENDLY EXPLANATION");
+    expect(prompt).toContain("MANDATORY 13-SECTION OUTPUT FORMAT");
+    expect(prompt).toContain("## • CLINICAL SUMMARY");
+    expect(prompt).toContain("## • DIFFERENTIAL DIAGNOSIS");
+    expect(prompt).toContain("## • MOST LIKELY DIAGNOSIS");
+    expect(prompt).toContain("## • DEBATE SUMMARY");
+    expect(prompt).toContain("## • IMMEDIATE NEXT STEPS");
+    expect(prompt).toContain("## • TREATMENT APPROACH");
+    expect(prompt).toContain("## • FIRST-LINE PHARMACOTHERAPY");
+    expect(prompt).toContain("## • SECOND-LINE / ALTERNATIVES");
+    expect(prompt).toContain("## • MONITORING PLAN");
+    expect(prompt).toContain("## • DRUG INTERACTIONS");
+    expect(prompt).toContain("## • DOSE ADJUSTMENTS");
+    expect(prompt).toContain("## • SAFETY NOTES");
+    expect(prompt).toContain("## • CAVEATS AND LIMITATIONS");
   });
 });

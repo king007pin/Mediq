@@ -184,8 +184,17 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
 
   const checkY = (n: number) => { if (y + n > PH - 25) newPage(); };
 
-  const isAllCapsHeader = (l: string) =>
-    /^[A-Z][A-Z\s\d&\/\-–—:()]+$/.test(l.trim()) && l.trim().length >= 4 && l.trim().length <= 60;
+  const isAllCapsHeader = (l: string) => {
+    let clean = l.trim();
+    if (clean.startsWith("#")) {
+      clean = clean.replace(/^#+\s*/, "").trim();
+    }
+    if (clean.startsWith("•") || clean.startsWith("–") || clean.startsWith("-")) {
+      clean = clean.slice(1).trim();
+    }
+    const textWithoutNumber = clean.replace(/^(\d+[\.\s]+|◆\s*)/, "").trim();
+    return /^[A-Z\d\s&\/\-–—:().,]+$/.test(textWithoutNumber) && textWithoutNumber.length >= 3 && clean.length <= 80;
+  };
   const isDash = (l: string) => /^[-─═]+$/.test(l.trim()) && l.trim().length >= 8;
   const isTableLine = (l: string) => l.trim().startsWith("|");
   const isNumList = (l: string) => /^\d+\.\s{1,3}/.test(l.trim());
@@ -304,7 +313,14 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
     if (isAllCapsHeader(line)) {
       checkY(10); y += 3;
       doc.setFont("times", "bold"); doc.setFontSize(11); tc(TEAL);
-      const hText = `• ${line.trim()}`;
+      let clean = line.trim();
+      if (clean.startsWith("#")) {
+        clean = clean.replace(/^#+\s*/, "").trim();
+      }
+      if (clean.startsWith("•") || clean.startsWith("–") || clean.startsWith("-")) {
+        clean = clean.slice(1).trim();
+      }
+      const hText = `• ${clean}`;
       doc.text(hText, ML, y);
       const tw = doc.getTextWidth(hText);
       dc(TEAL); doc.setLineWidth(0.3); doc.line(ML, y + 1.1, ML + tw, y + 1.1);

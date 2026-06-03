@@ -2,28 +2,43 @@ import { describe, it, expect } from "vitest";
 import { auditSections, MANDATORY_SECTIONS } from "../../lib/section-completeness";
 
 const completeAnswer = `
-CLINICAL INTERPRETATION
-----------------------------------------
+## • CLINICAL SUMMARY
 text
 
-DIFFERENTIAL DIAGNOSIS
-----------------------------------------
+## • DIFFERENTIAL DIAGNOSIS
 text
 
-MOST LIKELY DIAGNOSIS
-----------------------------------------
+## • MOST LIKELY DIAGNOSIS
 text
 
-RECOMMENDED EVALUATION NOW
-----------------------------------------
+## • DEBATE SUMMARY
 text
 
-EVIDENCE GAPS
-----------------------------------------
+## • IMMEDIATE NEXT STEPS
 text
 
-REFERENCES
-----------------------------------------
+## • TREATMENT APPROACH
+text
+
+## • FIRST-LINE PHARMACOTHERAPY
+text
+
+## • SECOND-LINE / ALTERNATIVES
+text
+
+## • MONITORING PLAN
+text
+
+## • DRUG INTERACTIONS
+text
+
+## • DOSE ADJUSTMENTS
+text
+
+## • SAFETY NOTES
+text
+
+## • CAVEATS AND LIMITATIONS
 text
 `;
 
@@ -34,10 +49,10 @@ describe("auditSections", () => {
     expect(r.missingMandatory).toEqual([]);
   });
 
-  it("flags missing REFERENCES section", () => {
-    const r = auditSections(completeAnswer.replace("REFERENCES", "XXXX"));
+  it("flags missing CLINICAL SUMMARY section", () => {
+    const r = auditSections(completeAnswer.replace("CLINICAL SUMMARY", "XXXX"));
     expect(r.allMandatoryPresent).toBe(false);
-    expect(r.missingMandatory).toContain("REFERENCES");
+    expect(r.missingMandatory).toContain("CLINICAL SUMMARY");
   });
 
   it("flags missing MOST LIKELY DIAGNOSIS", () => {
@@ -60,7 +75,7 @@ describe("auditSections", () => {
   it("tracks optional sections separately", () => {
     const noOpt = completeAnswer;
     const r = auditSections(noOpt);
-    expect(r.missingOptional.length).toBeGreaterThan(0);
+    expect(r.missingOptional).toEqual([]);
     expect(r.allMandatoryPresent).toBe(true);
   });
 });

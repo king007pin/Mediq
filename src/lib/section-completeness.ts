@@ -14,24 +14,24 @@
 // chain.
 
 export const MANDATORY_SECTIONS = [
-  "CLINICAL INTERPRETATION",
+  "CLINICAL SUMMARY",
   "DIFFERENTIAL DIAGNOSIS",
   "MOST LIKELY DIAGNOSIS",
-  "RECOMMENDED EVALUATION NOW",
-  "EVIDENCE GAPS",
-  "REFERENCES",
+  "DEBATE SUMMARY",
+  "IMMEDIATE NEXT STEPS",
+  "TREATMENT APPROACH",
+  "FIRST-LINE PHARMACOTHERAPY",
+  "SECOND-LINE / ALTERNATIVES",
+  "MONITORING PLAN",
+  "DRUG INTERACTIONS",
+  "DOSE ADJUSTMENTS",
+  "SAFETY NOTES",
+  "CAVEATS AND LIMITATIONS",
 ] as const;
 
 // Sections that are conditional in the synthesis prompt but worth tracking
 // when present so we can detect drift if they vanish unexpectedly.
-export const TRACKED_OPTIONAL_SECTIONS = [
-  "DIAGNOSTIC CRITERIA",
-  "SURVEILLANCE PLAN",
-  "FAMILY / PARENT SCREENING",
-  "TREATMENT PLAN",
-  "RED FLAGS",
-  "DRUG INTERACTION",
-] as const;
+export const TRACKED_OPTIONAL_SECTIONS = [] as const;
 
 export type SectionAuditResult = {
   missingMandatory: string[];

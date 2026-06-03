@@ -123,24 +123,53 @@ describe("Swarm Orchestration E2E query tests", () => {
             start(controller) {
               const text = `CLINICAL ASSESSMENT REPORT
 ----------------------------------------
-CLINICAL INTERPRETATION
-Some interpretation details here.
+## • CLINICAL SUMMARY
+Some clinical summary details here.
 
-DIFFERENTIAL DIAGNOSIS
-- possible ACS
-- cardiac arrest
+## • DIFFERENTIAL DIAGNOSIS
+| Diagnosis | Likelihood | Evidence | Agent Consensus |
+| --- | --- | --- | --- |
+| ACS | High | Chest pressure | 7/7 agents |
 
-MOST LIKELY DIAGNOSIS
-ACS secondary to acute occlusion.
+## • MOST LIKELY DIAGNOSIS
+The most likely diagnosis is **ACS**.
+Panel agreement: 7 of 7 agents agreed on ACS as the primary diagnosis after debate.
 
-RECOMMENDED EVALUATION NOW
-Immediate ECG.
+## • DEBATE SUMMARY
+Points of agreement:
+- ACS is primary
+Points debated:
+- None
 
-EVIDENCE GAPS
-No long-term follow up.
+## • IMMEDIATE NEXT STEPS
+1. **ECG**: Do immediate ECG. - Rationale: Settle the ACS diagnosis.
 
-REFERENCES
-[S1] Reference article.`;
+## • TREATMENT APPROACH
+Stabilization priorities.
+
+## • FIRST-LINE PHARMACOTHERAPY
+| Drug (generic) | Class | Dose & Route | Frequency | Duration | Evidence | Contraindications |
+| --- | --- | --- | --- | --- | --- | --- |
+| Aspirin | Antiplatelet | 300mg PO | Once | Immediate | Standard of care | Allergy |
+
+## • SECOND-LINE / ALTERNATIVES
+| Drug / Intervention | Indication | Evidence | When to switch |
+| --- | --- | --- | --- |
+
+## • MONITORING PLAN
+– **Lab or vital**: ECG monitoring.
+
+## • DRUG INTERACTIONS
+– No major drug-drug interaction.
+
+## • DOSE ADJUSTMENTS
+– Renal impairment: None.
+
+## • SAFETY NOTES
+Concise safety notes.
+
+## • CAVEATS AND LIMITATIONS
+* What is uncertain.`;
 
               const parsedJson = {
                 choices: [{
@@ -228,7 +257,7 @@ REFERENCES
     // The final done event should contain the audited sections and final answer
     const doneEvent = sseLines.find((e) => e.type === "done");
     expect(doneEvent).toBeDefined();
-    expect(doneEvent.answer).toContain("CLINICAL INTERPRETATION");
+    expect(doneEvent.answer).toContain("CLINICAL SUMMARY");
     expect(doneEvent.answer).toContain("DIFFERENTIAL DIAGNOSIS");
     expect(doneEvent.answer).toContain("MOST LIKELY DIAGNOSIS");
     expect(doneEvent.sectionAudit.allMandatoryPresent).toBe(true);
@@ -250,23 +279,53 @@ REFERENCES
           start(controller) {
             const text = `CLINICAL ASSESSMENT REPORT
 ----------------------------------------
-CLINICAL INTERPRETATION
-Some interpretation details here.
+## • CLINICAL SUMMARY
+Some clinical summary details here.
 
-DIFFERENTIAL DIAGNOSIS
-- possible ACS
+## • DIFFERENTIAL DIAGNOSIS
+| Diagnosis | Likelihood | Evidence | Agent Consensus |
+| --- | --- | --- | --- |
+| ACS | High | Chest pressure | 7/7 agents |
 
-MOST LIKELY DIAGNOSIS
-ACS secondary to acute occlusion.
+## • MOST LIKELY DIAGNOSIS
+The most likely diagnosis is **ACS**.
+Panel agreement: 7 of 7 agents agreed on ACS as the primary diagnosis after debate.
 
-RECOMMENDED EVALUATION NOW
-Immediate ECG.
+## • DEBATE SUMMARY
+Points of agreement:
+- ACS is primary
+Points debated:
+- None
 
-EVIDENCE GAPS
-No long-term follow up.
+## • IMMEDIATE NEXT STEPS
+1. **ECG**: Do immediate ECG. - Rationale: Settle the ACS diagnosis.
 
-REFERENCES
-[S1] Reference article.`;
+## • TREATMENT APPROACH
+Stabilization priorities.
+
+## • FIRST-LINE PHARMACOTHERAPY
+| Drug (generic) | Class | Dose & Route | Frequency | Duration | Evidence | Contraindications |
+| --- | --- | --- | --- | --- | --- | --- |
+| Aspirin | Antiplatelet | 300mg PO | Once | Immediate | Standard of care | Allergy |
+
+## • SECOND-LINE / ALTERNATIVES
+| Drug / Intervention | Indication | Evidence | When to switch |
+| --- | --- | --- | --- |
+
+## • MONITORING PLAN
+– **Lab or vital**: ECG monitoring.
+
+## • DRUG INTERACTIONS
+– No major drug-drug interaction.
+
+## • DOSE ADJUSTMENTS
+– Renal impairment: None.
+
+## • SAFETY NOTES
+Concise safety notes.
+
+## • CAVEATS AND LIMITATIONS
+* What is uncertain.`;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
             controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
             controller.close();
