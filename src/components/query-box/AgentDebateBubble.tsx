@@ -162,33 +162,41 @@ export function AgentDebateBubble({
             }}
           />
           <div className="min-w-0">
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>
-                  {(role || parsedRole || "Clinical Specialist").toUpperCase()}
-                </span>
-                {agent && (
-                  <span
-                    className="text-[9px] font-medium uppercase rounded-full px-1.5 py-0.2"
-                    style={{
-                      backgroundColor: "var(--card)",
-                      color: color.dot,
-                      border: `1px solid ${color.border}`,
-                    }}
-                  >
-                    {phase === "r2" ? "refined" : "initial"}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] font-normal leading-tight" style={{ color: "var(--muted)" }}>
-                {label}
-              </span>
-            </div>
-            {strategy && strategy !== displayRole && (
-              <p className="mt-0.5 text-[10px]" style={{ color: "var(--muted)" }}>
-                Lens: {strategy}
+            {/* Line 1: Lens / Strategy — primary heading */}
+            {strategy && (
+              <p className="text-[11px] font-bold uppercase tracking-wide leading-tight" style={{ color: "var(--accent)" }}>
+                {strategy}
               </p>
             )}
+            {/* Line 2: Agent name — smaller, muted */}
+            <span className="text-[10px] font-normal leading-tight" style={{ color: "var(--muted)" }}>
+              {label}
+            </span>
+            {/* Role tag + round badge */}
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {role && (
+                <span className="text-[9px] font-medium uppercase rounded-full px-1.5 py-0.5"
+                  style={{
+                    backgroundColor: "var(--card)",
+                    color: color.dot,
+                    border: `1px solid ${color.border}`,
+                  }}>
+                  {role}
+                </span>
+              )}
+              {agent && (
+                <span
+                  className="text-[9px] font-medium uppercase rounded-full px-1.5 py-0.5"
+                  style={{
+                    backgroundColor: "var(--card)",
+                    color: color.dot,
+                    border: `1px solid ${color.border}`,
+                  }}
+                >
+                  {phase === "r2" ? "refined" : "initial"}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         {agent ? (
