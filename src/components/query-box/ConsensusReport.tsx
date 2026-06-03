@@ -140,7 +140,7 @@ export function ReportView({ text }: { text: string }) {
       }
       elements.push(
         <div key={key++} className="mt-7 mb-3">
-          <p className="text-[17px] font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
+          <p className="text-[19px] font-bold uppercase tracking-wide underline underline-offset-4 decoration-2" style={{ color: "var(--accent)" }}>
             {title}
           </p>
         </div>

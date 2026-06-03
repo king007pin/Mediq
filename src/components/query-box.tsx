@@ -312,7 +312,7 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
 
     if (isAllCapsHeader(line)) {
       checkY(10); y += 3;
-      doc.setFont("times", "bold"); doc.setFontSize(13); tc(TEAL);
+      doc.setFont("times", "bold"); doc.setFontSize(15); tc(TEAL);
       let clean = line.trim();
       if (clean.startsWith("#")) {
         clean = clean.replace(/^#+\s*/, "").trim();
@@ -321,6 +321,8 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
         clean = clean.slice(1).trim();
       }
       doc.text(clean, ML, y);
+      const tw = doc.getTextWidth(clean);
+      dc(TEAL); doc.setLineWidth(0.4); doc.line(ML, y + 1.1, ML + tw, y + 1.1);
       y += 6; i++;
       continue;
     }
