@@ -423,7 +423,7 @@ export default function QueryBox() {
   const [sharingPdf, setSharingPdf] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
-  const extractionCacheRef = useRef<Map<string, { text: string; criticals: LabCritical[] }>>(new Map());
+  const [extractionCache, setExtractionCache] = useState<Map<string, { text: string; criticals: LabCritical[] }>>(new Map());
 
   function stop() {
     abortRef.current?.abort();
@@ -533,7 +533,8 @@ export default function QueryBox() {
     setLabFiles(processedFiles); // Instantly display the files in the UI list before extraction begins!
 
     // Identify which files need to be processed
-    const newFiles = processedFiles.filter((file) => !extractionCacheRef.current.has(getCacheKey(file)));
+    const newFiles = processedFiles.filter((file) => !extractionCache.has(getCacheKey(file)));
+    let activeCache = extractionCache;
 
     if (newFiles.length > 0) {
       try {
@@ -559,14 +560,17 @@ export default function QueryBox() {
         );
 
         // Store results in client-side cache
+        const nextCache = new Map(extractionCache);
         newExtractions.forEach(({ file, text, criticals }) => {
-          extractionCacheRef.current.set(getCacheKey(file), { text, criticals });
+          nextCache.set(getCacheKey(file), { text, criticals });
         });
+        setExtractionCache(nextCache);
+        activeCache = nextCache;
       } catch (err) {
         setLabError((err as Error).message ?? "Upload failed — check file format.");
         setLabUploading(false);
         // Revert UI to show only the files that were successfully cached/extracted
-        const validFiles = processedFiles.filter((f) => extractionCacheRef.current.has(getCacheKey(f)));
+        const validFiles = processedFiles.filter((f) => extractionCache.has(getCacheKey(f)));
         setLabFiles(validFiles);
         return;
       }
@@ -577,7 +581,7 @@ export default function QueryBox() {
     const combinedCriticals: LabCritical[] = [];
 
     processedFiles.forEach((file) => {
-      const cached = extractionCacheRef.current.get(getCacheKey(file));
+      const cached = activeCache.get(getCacheKey(file));
       if (cached) {
         combinedTexts.push(cached.text);
         combinedCriticals.push(...cached.criticals);
@@ -919,7 +923,7 @@ export default function QueryBox() {
               style={{ borderColor: "var(--card-border)", backgroundColor: "var(--card)" }}>
               <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
                 {labFiles.map((file, idx) => {
-                  const hasText = !!extractionCacheRef.current.get(getCacheKey(file))?.text;
+                  const hasText = !!extractionCache.get(getCacheKey(file))?.text;
                   const isExpanded = expandedFileIdx === idx;
                   return (
                     <div key={idx} className="border-b pb-2 last:border-0 last:pb-0 py-1.5" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
@@ -958,7 +962,7 @@ export default function QueryBox() {
                           <div className="text-[10px] uppercase font-bold tracking-wider mb-1.5" style={{ color: "var(--accent)" }}>
                             AI Visual / Document Extraction Findings
                           </div>
-                          {extractionCacheRef.current.get(getCacheKey(file))?.text}
+                          {extractionCache.get(getCacheKey(file))?.text}
                         </div>
                       )}
                     </div>
