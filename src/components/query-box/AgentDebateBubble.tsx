@@ -162,31 +162,14 @@ export function AgentDebateBubble({
             }}
           />
           <div className="min-w-0">
-            {/* Line 1: Lens / Strategy — primary heading */}
-            {strategy && (
-              <p className="text-[11px] font-bold uppercase tracking-wide leading-tight" style={{ color: "var(--accent)" }}>
-                {strategy}
-              </p>
-            )}
-            {/* Line 2: Agent name — smaller, muted */}
-            <span className="text-[10px] font-normal leading-tight" style={{ color: "var(--muted)" }}>
-              {label}
-            </span>
-            {/* Role tag + round badge */}
-            <div className="flex items-center gap-1.5 mt-0.5">
-              {role && (
-                <span className="text-[9px] font-medium uppercase rounded-full px-1.5 py-0.5"
-                  style={{
-                    backgroundColor: "var(--card)",
-                    color: color.dot,
-                    border: `1px solid ${color.border}`,
-                  }}>
-                  {role}
-                </span>
-              )}
+            {/* Line 1: Specialty/Lens Role name — CAPS & Bold */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold uppercase tracking-wide leading-tight" style={{ color: "var(--accent)" }}>
+                {(role || parsedRole || "Clinical Specialist").toUpperCase()}
+              </span>
               {agent && (
                 <span
-                  className="text-[9px] font-medium uppercase rounded-full px-1.5 py-0.5"
+                  className="text-[9px] font-medium uppercase rounded-full px-1.5 py-0.2"
                   style={{
                     backgroundColor: "var(--card)",
                     color: color.dot,
@@ -197,6 +180,16 @@ export function AgentDebateBubble({
                 </span>
               )}
             </div>
+            {/* Line 2: Model name — smaller, muted */}
+            <span className="text-[10px] font-normal leading-tight block mt-0.5" style={{ color: "var(--muted)" }}>
+              {label}
+            </span>
+            {/* Line 3: Strategy / Lens details */}
+            {strategy && strategy !== displayRole && (
+              <p className="mt-0.5 text-[10px] leading-snug" style={{ color: "var(--muted)" }}>
+                Lens: {strategy}
+              </p>
+            )}
           </div>
         </div>
         {agent ? (

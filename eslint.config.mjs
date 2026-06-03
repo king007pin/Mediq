@@ -6,7 +6,7 @@ import tseslintPlugin from "@typescript-eslint/eslint-plugin";
 export default defineConfig([
   // Keep the starter on the flat config export that actually runs under the pinned ESLint/Next toolchain.
   ...nextCoreWebVitals,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", ".claude/**"]),
 
   // W23 — typed lint rules. Scoped narrowly so we can add a single
   // high-value rule (`no-floating-promises`) without committing to the
