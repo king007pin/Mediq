@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { type AgentReply, type ModelMeta } from "../query-box";
 
 const MODEL_STRATEGY_LABELS: Record<string, string> = {
@@ -108,7 +108,36 @@ export function AgentDebateBubble({
 
   const label = meta?.label ?? agent?.model ?? `Agent ${idx + 1}`;
   const role = meta?.role ?? "";
-  const strategy = agent ? (MODEL_STRATEGY_LABELS[agent.model] ?? agent.reasoning) : "";
+
+  const parsedRole = useMemo(() => {
+    if (!agent || !agent.reasoning) return "";
+    const parts = agent.reasoning.split(" · ");
+    if (parts[0] === "Ruflo" || parts[0] === "local") {
+      return parts[1] || "";
+    }
+    if (parts[0].startsWith("fallback")) {
+      return "Clinical Specialist";
+    }
+    return parts[0];
+  }, [agent]);
+
+  const displayRole = role || parsedRole || label;
+
+  const strategy = useMemo(() => {
+    if (!agent) return "";
+    if (MODEL_STRATEGY_LABELS[agent.model]) {
+      return MODEL_STRATEGY_LABELS[agent.model];
+    }
+    const parts = agent.reasoning.split(" · ");
+    let strategyPart = "";
+    if (parts[0] === "Ruflo" || parts[0] === "local") {
+      strategyPart = parts[2] || "";
+    } else {
+      strategyPart = parts[1] || "";
+    }
+    return strategyPart;
+  }, [agent]);
+
   const sections = agent ? parseAgentSections(agent.message) : [];
   const hasSections = sections.length >= 2;
 
@@ -136,29 +165,31 @@ export function AgentDebateBubble({
             }}
           />
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-bold" style={{ color: "var(--text)" }}>
-                {role || label}
-              </span>
-              {role && (
-                <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold" style={{ color: "var(--text)" }}>
+                  {displayRole}
+                </span>
+                {agent && (
+                  <span
+                    className="text-[9px] rounded-full px-1.5 py-0.2"
+                    style={{
+                      backgroundColor: "var(--card)",
+                      color: color.dot,
+                      border: `1px solid ${color.border}`,
+                    }}
+                  >
+                    {phase === "r2" ? "refined" : "initial"}
+                  </span>
+                )}
+              </div>
+              {displayRole !== label && (
+                <span className="text-[10px] font-normal leading-tight" style={{ color: "var(--muted)" }}>
                   {label}
                 </span>
               )}
-              {agent && (
-                <span
-                  className="text-[10px] rounded-full px-2 py-0.5"
-                  style={{
-                    backgroundColor: "var(--card)",
-                    color: color.dot,
-                    border: `1px solid ${color.border}`,
-                  }}
-                >
-                  {phase === "r2" ? "refined" : "initial"}
-                </span>
-              )}
             </div>
-            {strategy && agent && (
+            {strategy && strategy !== displayRole && (
               <p className="mt-0.5 text-[10px]" style={{ color: "var(--muted)" }}>
                 Lens: {strategy}
               </p>
