@@ -19,12 +19,12 @@ function ReportTable({ lines }: { lines: string[] }) {
   if (!nonSep.length) return null;
 
   return (
-    <div className="overflow-x-auto rounded-xl border my-2" style={{ borderColor: "var(--card-border)" }}>
-      <table className="w-full text-xs border-collapse">
+    <div className="overflow-x-auto rounded-xl border my-3" style={{ borderColor: "var(--card-border)" }}>
+      <table className="w-full border-collapse">
         <thead>
-          <tr style={{ backgroundColor: "var(--pill)" }}>
+          <tr style={{ backgroundColor: "rgba(13,148,136,0.08)" }}>
             {headers.map((h, i) => (
-              <th key={i} className="px-3 py-2 text-left font-bold uppercase tracking-wide"
+              <th key={i} className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider"
                 style={{ color: "var(--accent)", borderBottom: "1px solid var(--card-border)" }}>
                 {h}
               </th>
@@ -35,7 +35,7 @@ function ReportTable({ lines }: { lines: string[] }) {
           {dataRows.map((row, ri) => (
             <tr key={ri} style={{ borderBottom: "1px solid var(--card-border)" }}>
               {row.map((cell, ci) => (
-                <td key={ci} className="px-3 py-2 leading-relaxed"
+                <td key={ci} className="px-4 py-2.5 text-[13px] leading-relaxed"
                   style={{ color: ci === 0 ? "var(--text)" : "var(--muted)" }}>
                   {cell}
                 </td>
@@ -83,11 +83,14 @@ export function ReportView({ text }: { text: string }) {
     // ALL CAPS section header
     if (isAllCapsHeader(line)) {
       elements.push(
-        <div key={key++} className="mt-5 mb-1">
-          <p className="text-[15px] font-extrabold uppercase tracking-[0.06em] flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
-            <span>•</span>
-            <span className="underline underline-offset-4">{line.trim()}</span>
-          </p>
+        <div key={key++} className="mt-7 mb-3">
+          <div className="flex items-center gap-3">
+            <span className="text-base leading-none" style={{ color: "var(--accent)" }}>◆</span>
+            <p className="text-[15px] font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
+              {line.trim()}
+            </p>
+          </div>
+          <div className="h-px mt-2" style={{ backgroundColor: "rgba(13,148,136,0.25)" }} />
         </div>
       );
       i++;
@@ -97,7 +100,7 @@ export function ReportView({ text }: { text: string }) {
     // Numbered list
     if (isNumbered(line)) {
       elements.push(
-        <p key={key++} className="text-sm leading-relaxed pl-4 my-0.5" style={{ color: "var(--text)" }}>
+        <p key={key++} className="text-[13px] leading-6 pl-5 my-1" style={{ color: "var(--text)" }}>
           {line.trim()}
         </p>
       );
@@ -108,8 +111,8 @@ export function ReportView({ text }: { text: string }) {
     // Bullet list
     if (isBullet(line)) {
       elements.push(
-        <p key={key++} className="text-sm leading-relaxed pl-4 my-0.5 flex gap-2" style={{ color: "var(--muted)" }}>
-          <span style={{ color: "var(--accent)" }}>–</span>
+        <p key={key++} className="text-[13px] leading-6 pl-5 my-1 flex gap-3" style={{ color: "var(--muted)" }}>
+          <span className="mt-0.5 shrink-0 text-sm" style={{ color: "var(--accent)" }}>–</span>
           <span>{line.trim().replace(/^[-•]\s{1,3}/, "")}</span>
         </p>
       );
@@ -119,14 +122,14 @@ export function ReportView({ text }: { text: string }) {
 
     // Regular line
     elements.push(
-      <p key={key++} className="text-sm leading-relaxed my-0.5" style={{ color: "var(--text)" }}>
+      <p key={key++} className="text-[13px] leading-6 my-1" style={{ color: "var(--text)" }}>
         {line}
       </p>
     );
     i++;
   }
 
-  return <div className="space-y-0 text-left">{elements}</div>;
+  return <div className="space-y-1 text-left leading-relaxed">{elements}</div>;
 }
 
 interface ConsensusReportProps {
@@ -164,16 +167,16 @@ export function ConsensusReport({
   }
 
   return (
-    <div className="rounded-xl border p-4"
+    <div className="rounded-xl border p-5"
       style={{
         borderColor: "rgba(74,222,128,0.3)",
         background: "linear-gradient(135deg, rgba(74,222,128,0.04), var(--card))",
         boxShadow: "0 0 24px rgba(74,222,128,0.08)",
       }}>
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <span className="inline-block h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#4ade80" }}>
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <span className="inline-block h-3 w-3 rounded-full"
+          style={{ backgroundColor: "#4ade80", boxShadow: "0 0 8px #4ade80" }} />
+        <span className="text-sm font-bold uppercase tracking-wider" style={{ color: "#4ade80" }}>
           Clinical Assessment Report
         </span>
         <span className="text-[10px] rounded-full px-2 py-0.5"
@@ -201,14 +204,14 @@ export function ConsensusReport({
       </div>
       <ReportView text={text} />
       {(hospitalDepartments.length > 0 || pgSubjects.length > 0) && (
-        <div className="mt-4 p-3 rounded-lg border flex flex-col gap-2 text-left"
+        <div className="mt-5 p-4 rounded-lg border flex flex-col gap-3 text-left"
           style={{ borderColor: "rgba(74,222,128,0.2)", backgroundColor: "rgba(74,222,128,0.02)" }}>
           {hospitalDepartments.length > 0 && (
             <div className="flex items-center flex-wrap gap-2">
-              <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--muted)" }}>Hospital Departments:</span>
+              <span className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "var(--muted)" }}>Hospital Departments</span>
               {hospitalDepartments.map((dept, i) => (
-                <span key={i} className="text-[10px] rounded-full px-2 py-0.5 font-medium"
-                  style={{ backgroundColor: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}>
+                <span key={i} className="text-[11px] rounded-full px-2.5 py-1 font-semibold"
+                  style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.25)" }}>
                   {dept}
                 </span>
               ))}
@@ -216,10 +219,10 @@ export function ConsensusReport({
           )}
           {pgSubjects.length > 0 && (
             <div className="flex items-center flex-wrap gap-2">
-              <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--muted)" }}>MBBS PG Subjects:</span>
+              <span className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "var(--muted)" }}>MBBS PG Subjects</span>
               {pgSubjects.map((subj, i) => (
-                <span key={i} className="text-[10px] rounded-full px-2 py-0.5 font-medium"
-                  style={{ backgroundColor: "rgba(168,85,247,0.1)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.2)" }}>
+                <span key={i} className="text-[11px] rounded-full px-2.5 py-1 font-semibold"
+                  style={{ backgroundColor: "rgba(168,85,247,0.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.25)" }}>
                   {subj}
                 </span>
               ))}
@@ -227,14 +230,14 @@ export function ConsensusReport({
           )}
         </div>
       )}
-      <div className="mt-4 rounded-lg border px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-left"
+      <div className="mt-5 rounded-lg border px-4 py-3 flex flex-wrap gap-x-4 gap-y-2 text-left"
         style={{ borderColor: "var(--card-border)", backgroundColor: "var(--pill)" }}>
-        <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--muted)" }}>Citation key:</span>
-        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-          <span style={{ color: "var(--accent)" }}>[S1], [S2]…</span> = Evidence snippet from your ingested knowledge base (PDF / URL / notes)
+        <span className="text-[11px] uppercase tracking-wider font-bold" style={{ color: "var(--muted)" }}>Citation Key</span>
+        <span className="text-[12px]" style={{ color: "var(--muted)" }}>
+          <span style={{ color: "var(--accent)" }}>[S1], [S2]…</span> = Evidence snippet from ingested knowledge base (PDF / URL / notes)
         </span>
-        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-          <span style={{ color: "var(--accent)" }}>[PC1], [PC2]…</span> = Prior case from your session history used as contextual reference
+        <span className="text-[12px]" style={{ color: "var(--muted)" }}>
+          <span style={{ color: "var(--accent)" }}>[PC1], [PC2]…</span> = Prior case from session history used as contextual reference
         </span>
       </div>
     </div>
