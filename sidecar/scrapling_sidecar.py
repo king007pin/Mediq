@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import asyncio
 import os
+import secrets
 from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
+from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 
 try:
@@ -38,7 +40,14 @@ SHARED_TOKEN = os.environ.get("SCRAPLING_SIDECAR_TOKEN")
 
 app = FastAPI(title="scrapling-sidecar", version="0.1.0")
 
-analyzer = AnalyzerEngine()
+# Configure Presidio to use the small spaCy model
+provider_config = {
+    "nlp_engine_name": "spacy",
+    "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+}
+provider = NlpEngineProvider(nlp_configuration=provider_config)
+nlp_engine = provider.create_engine()
+analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
 anonymizer = AnonymizerEngine()
 
 # Custom pattern recognizers for Aadhaar and ABHA
@@ -70,7 +79,7 @@ class ScrapeResponse(BaseModel):
 
 
 class DeidentifyRequest(BaseModel):
-    text: str
+    text: str = Field(..., max_length=50000)
     language: str = "en"
 
 
@@ -132,7 +141,7 @@ async def scrape(
     req: ScrapeRequest,
     x_auth_token: Optional[str] = Header(default=None, alias="X-Auth-Token"),
 ):
-    if SHARED_TOKEN and x_auth_token != SHARED_TOKEN:
+    if SHARED_TOKEN and (not x_auth_token or not secrets.compare_digest(x_auth_token, SHARED_TOKEN)):
         raise HTTPException(status_code=401, detail="bad token")
 
     timeout_s = max(1.0, req.timeout_ms / 1000.0)
@@ -189,11 +198,11 @@ async def scrape(
 
 
 @app.post("/deidentify", response_model=DeidentifyResponse)
-async def deidentify(
+def deidentify(
     req: DeidentifyRequest,
     x_auth_token: Optional[str] = Header(default=None, alias="X-Auth-Token"),
 ):
-    if SHARED_TOKEN and x_auth_token != SHARED_TOKEN:
+    if SHARED_TOKEN and (not x_auth_token or not secrets.compare_digest(x_auth_token, SHARED_TOKEN)):
         raise HTTPException(status_code=401, detail="bad token")
 
     if not req.text.strip():
