@@ -17,13 +17,18 @@ const RULES: ScrubRule[] = [
   // Titled names: "Mr. John Doe", "Mrs Smith", "Dr. Jane Q. Public".
   { pattern: /\b(Mr\.?|Mrs\.?|Ms\.?|Miss|Mx\.?|Dr\.?|Prof\.?)\s+[A-Z][a-z]+(?:\s+(?:[A-Z]\.?\s*)?[A-Z][a-z]+)?\b/g, replacement: "[NAME]" },
   // "patient John", "patient: Jane Doe"
-  { pattern: /\b(patient|client|subject)[\s:]+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/gi, replacement: "$1 [NAME]" },
-  // US phone numbers: +1 (xxx) xxx-xxxx, 555-123-4567, 5551234567.
+  { pattern: /\b([Pp]atient|[Cc]lient|[Ss]ubject)[\s:]+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/g, replacement: "$1 [NAME]" },
+  // US and Indian phone numbers.
+  { pattern: /(?:\+?91[\s.-]?|0)?[6-9]\d{4}[\s.-]?\d{5}\b/g, replacement: "[PHONE]" },
+  { pattern: /(?:\+?91[\s.-]?|0)?[6-9]\d{9}\b/g, replacement: "[PHONE]" },
   { pattern: /(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g, replacement: "[PHONE]" },
   // Email addresses.
   { pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, replacement: "[EMAIL]" },
   // US SSN.
   { pattern: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: "[SSN]" },
+  // Indian national IDs.
+  { pattern: /\b\d{2}[\s.-]?\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b/g, replacement: "[ABHA]" },
+  { pattern: /\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b/g, replacement: "[AADHAAR]" },
   // MRN-like: "MRN 12345678", "MR # 1234567", "Medical Record #87654321".
   { pattern: /\b(MRN|MR\s*#?|Med(?:ical)?\s+Record)\s*[#:]?\s*\d{4,}\b/gi, replacement: "[MRN]" },
   // Calendar dates: 12/31/1990, 1990-12-31, "Jan 5, 1990".

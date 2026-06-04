@@ -13,11 +13,18 @@ describe("scrubPhi — regex redaction", () => {
     expect(scrubPhi("Patient: Jane")).toMatch(/Patient \[NAME\]/);
   });
 
-  it("redacts US phone numbers", () => {
+  it("redacts US and Indian phone numbers", () => {
     expect(scrubPhi("call 555-123-4567")).toBe("call [PHONE]");
     expect(scrubPhi("(415) 867-5309")).toBe("[PHONE]");
     expect(scrubPhi("+1 415 867 5309")).toBe("[PHONE]");
     expect(scrubPhi("4158675309")).toBe("[PHONE]");
+    expect(scrubPhi("patient mobile +91 98765 43210")).toBe("patient mobile [PHONE]");
+    expect(scrubPhi("dial 919876543210 or 09876543210")).toBe("dial [PHONE] or [PHONE]");
+  });
+
+  it("redacts Indian national IDs (Aadhaar & ABHA)", () => {
+    expect(scrubPhi("Aadhaar: 1234-5678-9012")).toBe("Aadhaar: [AADHAAR]");
+    expect(scrubPhi("ABHA ID is 12-3456-7890-1234")).toBe("ABHA ID is [ABHA]");
   });
 
   it("redacts email addresses", () => {
