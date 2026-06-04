@@ -22,6 +22,8 @@ from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
+from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
+from presidio_anonymizer import AnonymizerEngine
 
 try:
     from scrapling.fetchers import Fetcher, StealthyFetcher
@@ -35,6 +37,18 @@ except Exception as import_err:  # pragma: no cover
 SHARED_TOKEN = os.environ.get("SCRAPLING_SIDECAR_TOKEN")
 
 app = FastAPI(title="scrapling-sidecar", version="0.1.0")
+
+analyzer = AnalyzerEngine()
+anonymizer = AnonymizerEngine()
+
+# Custom pattern recognizers for Aadhaar and ABHA
+aadhaar_pattern = Pattern(name="aadhaar_pattern", regex=r"\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b", score=0.85)
+aadhaar_recognizer = PatternRecognizer(supported_entity="AADHAAR", patterns=[aadhaar_pattern])
+analyzer.registry.add_recognizer(aadhaar_recognizer)
+
+abha_pattern = Pattern(name="abha_pattern", regex=r"\b\d{2}[\s.-]?\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b", score=0.85)
+abha_recognizer = PatternRecognizer(supported_entity="ABHA", patterns=[abha_pattern])
+analyzer.registry.add_recognizer(abha_recognizer)
 
 
 class ScrapeRequest(BaseModel):
@@ -52,6 +66,17 @@ class ScrapeResponse(BaseModel):
     html: str
     content_type: Optional[str] = None
     used_mode: Optional[str] = None
+    error: Optional[str] = None
+
+
+class DeidentifyRequest(BaseModel):
+    text: str
+    language: str = "en"
+
+
+class DeidentifyResponse(BaseModel):
+    ok: bool
+    text: str
     error: Optional[str] = None
 
 
@@ -161,3 +186,22 @@ async def scrape(
             ok=False, status=0, final_url=req.url, html="",
             used_mode="stealthy", error=str(e),
         )
+
+
+@app.post("/deidentify", response_model=DeidentifyResponse)
+async def deidentify(
+    req: DeidentifyRequest,
+    x_auth_token: Optional[str] = Header(default=None, alias="X-Auth-Token"),
+):
+    if SHARED_TOKEN and x_auth_token != SHARED_TOKEN:
+        raise HTTPException(status_code=401, detail="bad token")
+
+    if not req.text.strip():
+        return DeidentifyResponse(ok=True, text="")
+
+    try:
+        results = analyzer.analyze(text=req.text, language=req.language)
+        anonymized_result = anonymizer.anonymize(text=req.text, analyzer_results=results)
+        return DeidentifyResponse(ok=True, text=anonymized_result.text)
+    except Exception as e:
+        return DeidentifyResponse(ok=False, text=req.text, error=str(e))
