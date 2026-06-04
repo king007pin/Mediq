@@ -1,7 +1,7 @@
 import { textFromPdfBuffer } from "@/lib/rag";
 import { parseLabText } from "@/lib/lab-parser";
 import { requireAuth } from "@/lib/auth-guard";
-import { scrubPhi } from "@/lib/phi-scrubber";
+import { scrubPhi, scrubPhiAsync } from "@/lib/phi-scrubber";
 import { ocrImages, type OcrImage } from "@/lib/nvidia";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -374,7 +374,7 @@ export async function POST(req: NextRequest) {
   // serialising. Structured `panel` values are numeric ranges and analyte
   // names with no free-text PHI surface, so they pass through untouched.
   const panel = parseLabText(combinedText);
-  const scrubbedText = scrubPhi(combinedText);
+  const scrubbedText = await scrubPhiAsync(combinedText);
 
   return NextResponse.json({
     text: scrubbedText,

@@ -83,3 +83,43 @@ export function scrubPhiDeep(value: unknown, seen = new WeakSet<object>()): unkn
   }
   return out;
 }
+
+/**
+ * Async context-aware scrubber calling Python sidecar NER.
+ * Falls back to synchronous regex-based scrubPhi on failures or timeouts.
+ */
+export async function scrubPhiAsync(text: string | null | undefined): Promise<string> {
+  if (!text) return "";
+  
+  const enabled = process.env.SCRAPLING_ENABLED !== "0";
+  const url = process.env.SCRAPLING_SIDECAR_URL || "http://127.0.0.1:8003";
+  const token = process.env.SCRAPLING_SIDECAR_TOKEN || "";
+
+  if (!enabled) {
+    return scrubPhi(text);
+  }
+
+  try {
+    const res = await fetch(`${url}/deidentify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "X-Auth-Token": token } : {}),
+      },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(3000), // Strict 3s budget to prevent blocking requests
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ok && typeof data.text === "string") {
+        return data.text;
+      }
+    }
+  } catch (err) {
+    console.warn("[PHI Scrubber] Sidecar NER failed, falling back to regex: ", err);
+  }
+
+  // Fallback to local regex-based de-identification
+  return scrubPhi(text);
+}

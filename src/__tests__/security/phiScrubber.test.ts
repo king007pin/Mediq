@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scrubPhi, scrubPhiDeep } from "../../lib/phi-scrubber";
+import { scrubPhi, scrubPhiDeep, scrubPhiAsync } from "../../lib/phi-scrubber";
 
 describe("scrubPhi — regex redaction", () => {
   it("redacts titled names", () => {
@@ -92,3 +92,21 @@ describe("scrubPhiDeep — recursive object scrubber", () => {
     expect(out.message).toMatch(/Patient \[NAME\] failed validation/);
   });
 });
+
+describe("scrubPhi — ML sidecar de-identification", () => {
+  it("communicates with the sidecar and falls back to regex on error", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      if (url.toString().includes("/deidentify")) {
+        return new Response(JSON.stringify({ ok: true, text: "Redacted [NAME] text" }), { status: 200 });
+      }
+      return originalFetch(url);
+    };
+    
+    const res = await scrubPhiAsync("Mr. Alice presents");
+    expect(res).toBe("Redacted [NAME] text");
+
+    globalThis.fetch = originalFetch;
+  });
+});
+
