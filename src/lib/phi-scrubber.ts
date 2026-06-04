@@ -20,7 +20,6 @@ const RULES: ScrubRule[] = [
   { pattern: /\b([Pp]atient|[Cc]lient|[Ss]ubject)[\s:]+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/g, replacement: "$1 [NAME]" },
   // US and Indian phone numbers.
   { pattern: /(?:\+?91[\s.-]?|0)?[6-9]\d{4}[\s.-]?\d{5}\b/g, replacement: "[PHONE]" },
-  { pattern: /(?:\+?91[\s.-]?|0)?[6-9]\d{9}\b/g, replacement: "[PHONE]" },
   { pattern: /(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b/g, replacement: "[PHONE]" },
   // Email addresses.
   { pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, replacement: "[EMAIL]" },
