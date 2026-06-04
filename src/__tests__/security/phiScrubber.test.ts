@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scrubPhi, scrubPhiDeep, scrubPhiAsync } from "../../lib/phi-scrubber";
+import { scrubPhi, scrubPhiDeep, scrubPhiAsync, _scrubberConfig } from "../../lib/phi-scrubber";
 
 describe("scrubPhi — regex redaction", () => {
   it("redacts titled names", () => {
@@ -95,18 +95,18 @@ describe("scrubPhiDeep — recursive object scrubber", () => {
 
 describe("scrubPhi — ML sidecar de-identification", () => {
   it("communicates with the sidecar and falls back to regex on error", async () => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (url) => {
+    const originalFetch = _scrubberConfig.fetch;
+    _scrubberConfig.fetch = async (url, init) => {
       if (url.toString().includes("/deidentify")) {
         return new Response(JSON.stringify({ ok: true, text: "Redacted [NAME] text" }), { status: 200 });
       }
-      return originalFetch(url);
+      return originalFetch(url, init);
     };
     
     const res = await scrubPhiAsync("Mr. Alice presents");
     expect(res).toBe("Redacted [NAME] text");
 
-    globalThis.fetch = originalFetch;
+    _scrubberConfig.fetch = originalFetch;
   });
 });
 

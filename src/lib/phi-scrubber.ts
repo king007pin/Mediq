@@ -84,6 +84,10 @@ export function scrubPhiDeep(value: unknown, seen = new WeakSet<object>()): unkn
   return out;
 }
 
+export const _scrubberConfig = {
+  fetch: globalThis.fetch,
+};
+
 /**
  * Async context-aware scrubber calling Python sidecar NER.
  * Falls back to synchronous regex-based scrubPhi on failures or timeouts.
@@ -100,7 +104,7 @@ export async function scrubPhiAsync(text: string | null | undefined): Promise<st
   }
 
   try {
-    const res = await fetch(`${url}/deidentify`, {
+    const res = await _scrubberConfig.fetch(`${url}/deidentify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
