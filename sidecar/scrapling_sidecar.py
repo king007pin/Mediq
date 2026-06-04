@@ -51,11 +51,11 @@ analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
 anonymizer = AnonymizerEngine()
 
 # Custom pattern recognizers for Aadhaar and ABHA
-aadhaar_pattern = Pattern(name="aadhaar_pattern", regex=r"\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b", score=0.85)
+aadhaar_pattern = Pattern(name="aadhaar_pattern", regex=r"\b\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b", score=0.95)
 aadhaar_recognizer = PatternRecognizer(supported_entity="AADHAAR", patterns=[aadhaar_pattern])
 analyzer.registry.add_recognizer(aadhaar_recognizer)
 
-abha_pattern = Pattern(name="abha_pattern", regex=r"\b\d{2}[\s.-]?\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b", score=0.85)
+abha_pattern = Pattern(name="abha_pattern", regex=r"\b\d{2}[\s.-]?\d{4}[\s.-]?\d{4}[\s.-]?\d{4}\b", score=0.95)
 abha_recognizer = PatternRecognizer(supported_entity="ABHA", patterns=[abha_pattern])
 analyzer.registry.add_recognizer(abha_recognizer)
 
