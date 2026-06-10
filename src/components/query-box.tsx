@@ -623,15 +623,29 @@ export default function QueryBox() {
 
   async function handlePrint() {
     if (!result) return;
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write("<html><head><title>Generating PDF...</title></head><body style='display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;'><div style='text-align:center;'><p>Generating Clinical PDF...</p><p style='font-size:12px;color:#999;'>Please wait while the swarm consensus report is prepared.</p></div></body></html>");
+    }
     setGeneratingPdf(true);
     try {
       const blob = await generateClinicalPDF(result.answer, question);
       const url = URL.createObjectURL(blob);
-      const win = window.open(url, "_blank");
-      if (win) win.focus();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-    } catch (err) { console.error("PDF generation failed:", err); }
-    finally { setGeneratingPdf(false); }
+      if (win) {
+        win.location.href = url;
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      } else {
+        const a = document.createElement("a");
+        a.href = url; a.download = "mediq-clinical-report.pdf";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      if (win) win.close();
+    } finally {
+      setGeneratingPdf(false);
+    }
   }
 
   async function handleShare() {
