@@ -505,21 +505,54 @@ export async function nvidiaChatStream(
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
+  let buffer = "";
 
   return new ReadableStream<string>({
     async pull(controller) {
       try {
         const { done, value } = await reader.read();
-        if (done) { controller.close(); return; }
-        const lines = decoder.decode(value).split("\n").filter((l) => l.startsWith("data: "));
+        if (done) {
+          if (buffer.trim()) {
+            const lines = buffer.split("\n");
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                if (data === "[DONE]") {
+                  controller.close();
+                  return;
+                }
+                try {
+                  const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+                  const delta = parsed.choices?.[0]?.delta?.content;
+                  if (delta) controller.enqueue(delta);
+                } catch { /* ignore */ }
+              }
+            }
+          }
+          controller.close();
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
         for (const line of lines) {
-          const data = line.slice(6);
-          if (data === "[DONE]") { controller.close(); return; }
-          try {
-            const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) controller.enqueue(delta);
-          } catch { /* ignore malformed SSE chunks */ }
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") {
+              controller.close();
+              try {
+                await reader.cancel();
+              } catch {}
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) controller.enqueue(delta);
+            } catch { /* ignore */ }
+          }
         }
       } catch (err) {
         controller.error(err);
