@@ -195,7 +195,7 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
     const textWithoutNumber = clean.replace(/^(\d+[\.\s]+|◆\s*)/, "").trim();
     return /^[A-Z\d\s&\/\-–—:().,]+$/.test(textWithoutNumber) && textWithoutNumber.length >= 3 && clean.length <= 80;
   };
-  const isDash = (l: string) => /^[-─═]+$/.test(l.trim()) && l.trim().length >= 8;
+  const isDash = (l: string) => /^[-─═]+$/.test(l.trim()) && l.trim().length >= 3;
   const isTableLine = (l: string) => l.trim().startsWith("|");
   const isNumList = (l: string) => /^\d+\.\s{1,3}/.test(l.trim());
   const isBull = (l: string) => /^[-•]\s{1,3}/.test(l.trim());

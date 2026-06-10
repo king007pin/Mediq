@@ -108,7 +108,7 @@ export function ReportView({ text }: { text: string }) {
   let i = 0;
   let key = 0;
 
-  const isDashLine = (l: string) => /^[-─═]+$/.test(l.trim()) && l.trim().length >= 8;
+  const isDashLine = (l: string) => /^[-─═]+$/.test(l.trim()) && l.trim().length >= 3;
   const isTableLine = (l: string) => l.trim().startsWith("|");
   const isNumbered = (l: string) => /^\d+\.\s{1,3}/.test(l.trim());
   const isBullet = (l: string) => /^[-•]\s{1,3}/.test(l.trim());

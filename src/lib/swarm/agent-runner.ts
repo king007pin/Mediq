@@ -239,6 +239,9 @@ Rules:
 Write:
 “The most likely diagnosis is **[diagnosis]**.”
 
+Write a concise, patient-friendly summary (approximately 60 words) explaining the disease in plain, non-clinical, and non-medical language, so that non-medical people can read and understand what the disease is. Format this summary as a blockquote:
+> **Patient-Friendly Summary**: [Plain-language description of the disease, its mechanism, and standard symptoms, keeping it under 60 words].
+
 Then explain:
 * Why this diagnosis best fits the case
 * Which findings support it
