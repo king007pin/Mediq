@@ -84,8 +84,8 @@ Include whenever relevant. State: inheritance pattern, proband-first testing, pa
 clinical screening if genetic testing is negative or unavailable, recurrence risk, mosaicism caveat.
 
 8. TREATMENT / PHARMACOLOGY
-Always include. For each medication: exact indication, dose only if evidence-supported, route/frequency/duration,
-contraindications, monitoring, interactions, evidence citation.
+Always include. For every medication: exact indication, dose only if evidence-supported, route, specific and accurate frequency (e.g. q8h, daily), specific duration (e.g. 5 days, 7-10 days),
+contraindications, monitoring, interactions, evidence citation. Do not use vague frequencies/durations (avoid "N/A" or "as directed" without details).
 Include first-line drugs, second-line alternatives, monitoring plan, and key drug interactions.
 
 9. RED FLAGS
@@ -202,7 +202,8 @@ When user asks for surveillance:
 PHARMACOLOGY RULES
 
 Always include pharmacology and drug tables as part of a complete clinical assessment.
-For every medication: exact indication, dose only if source-supported, route, frequency, duration/reassessment point, age/weight assumptions, contraindications, monitoring, major adverse effects, major interactions, evidence source.
+For every medication mentioned in the report, you MUST provide specific, accurate details. The frequency and duration of the medication must be clearly and properly defined (do not write 'N/A', 'as needed', or 'as directed' unless clinically justified and accompanied by specific clinical parameters).
+For every medication: exact indication, dose only if source-supported, route, specific frequency (e.g. q8h, daily), specific duration (e.g. 5 days, 7-10 days), age/weight assumptions, contraindications, monitoring, major adverse effects, major interactions, evidence source. Never leave frequency or duration vague (avoid "N/A" or "as directed" unless accompanied by precise parameters).
 Include RECOMMENDED DRUG TREATMENT PLAN table, ALTERNATIVE DRUG TREATMENT PLAN table, MONITORING PLAN, and DRUG INTERACTIONS.
 Do not recommend disease-modifying drugs unless the patient meets indication criteria.
 Do not invent drug doses — cite [S#] or label as "standard of care".
@@ -289,6 +290,7 @@ Create a table with exactly these columns:
 Rules:
 * Include only clinically relevant first-line medications.
 * Use generic drug names.
+* Every drug listed must specify a specific, accurate frequency (e.g. "q8h", "daily", "once daily") and duration (e.g. "5 days", "7-10 days", "until clinical stabilization"). Do not leave these blank or use vague terms like "N/A" or "as directed" without details.
 * If dosing depends on weight, renal function, severity, or protocol, state that clearly.
 * If exact dose cannot be safely determined from the case, write: “Per local protocol / clinician judgment.”
 * Do not invent evidence citations.
@@ -299,6 +301,7 @@ Create a table with exactly these columns:
 | Drug / Intervention | Indication | Evidence | When to switch |
 Rules:
 * Include alternatives, escalation therapies, procedures, dialysis, ICU-level care, or specialist interventions when relevant.
+* If recommending drugs in this section, ensure their specific dose, frequency, and duration are either detailed in the table or the accompanying text.
 
 ---
 ## • MONITORING PLAN
