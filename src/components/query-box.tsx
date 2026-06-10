@@ -88,10 +88,8 @@ export const MODEL_COLORS = [
 
 // ── PDF generation ──────────────────────────────────────────────────────────
 
-async function generateClinicalPDF(reportText: string, query: string): Promise<Blob> {
-  const { default: jsPDF } = await import("jspdf");
-
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any, logoDataUrl: string | null): Blob {
+  const doc = new jsPDFClass({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const PW = 210, PH = 297;
   const ML = 18, MR = 192;
@@ -110,24 +108,6 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
   const tc = (c: [number, number, number]) => doc.setTextColor(c[0], c[1], c[2]);
   const fc = (c: [number, number, number]) => doc.setFillColor(c[0], c[1], c[2]);
   const dc = (c: [number, number, number]) => doc.setDrawColor(c[0], c[1], c[2]);
-
-  // Load logo
-  let logoDataUrl: string | null = null;
-  try {
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("logo load failed"));
-      img.src = "/brain-icon.png";
-      setTimeout(() => reject(new Error("timeout")), 3000);
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    canvas.getContext("2d")!.drawImage(img, 0, 0);
-    logoDataUrl = canvas.toDataURL("image/png");
-  } catch { /* no logo */ }
 
   let page = 1;
   let y = 57;
@@ -223,6 +203,33 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
     const line = lines[i];
     if (!line.trim()) { i++; y += 1.2; continue; }
 
+    if (line.trim().startsWith("```")) {
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++;
+
+      if (codeLines.length > 0) {
+        const blockH = codeLines.length * 4.5 + 6;
+        checkY(blockH);
+        fc(TEAL_BG);
+        dc([13, 148, 136]);
+        doc.setLineWidth(0.2);
+        doc.rect(ML, y, CW, blockH, "FD");
+        doc.setFont("courier", "normal");
+        doc.setFontSize(8.5);
+        tc(DARK);
+        codeLines.forEach((cl, idx) => {
+          doc.text(cl, ML + 4, y + 4.5 + idx * 4.5);
+        });
+        y += blockH + 3;
+      }
+      continue;
+    }
+
     if (isTableLine(line)) {
       const tbl: string[] = [];
       while (i < lines.length && (isTableLine(lines[i]) || isSepRow(lines[i]))) { tbl.push(lines[i]); i++; }
@@ -247,7 +254,6 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
       const dataHs = dataWrapped.map(rw => calcRowH(rw));
 
       const totalH = hdrH + dataHs.reduce((s, h) => s + h, 0);
-      // Don't checkY the whole table — draw row-by-row with per-row checkY
       y += 2;
 
       const drawTableHeader = (): number => {
@@ -265,9 +271,16 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
         return hdrH;
       };
 
-      // Keep header + first data row together on the same page
-      const firstRowH = dataHs[0] ?? 0;
-      if (y + hdrH + firstRowH > PH - 25) newPage();
+      // Keep table together if it fits on a single A4 page (max content height is 251mm).
+      if (totalH <= 251) {
+        if (y + totalH > PH - 25) {
+          newPage();
+        }
+      } else {
+        // Fallback: keep header + first data row together on the same page
+        const firstRowH = dataHs[0] ?? 0;
+        if (y + hdrH + firstRowH > PH - 25) newPage();
+      }
 
       let segTopY = y;
       y += drawTableHeader();
@@ -311,7 +324,7 @@ async function generateClinicalPDF(reportText: string, query: string): Promise<B
     if (isDash(line)) { i++; continue; }
 
     if (isAllCapsHeader(line)) {
-      checkY(10); y += 3;
+      checkY(35); y += 3;
       doc.setFont("times", "bold"); doc.setFontSize(15); tc(TEAL);
       let clean = line.trim();
       if (clean.startsWith("#")) {
@@ -436,6 +449,38 @@ export default function QueryBox() {
 
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
+  const [jsPdfClass, setJsPdfClass] = useState<any>(null);
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    import("jspdf")
+      .then((m) => {
+        setJsPdfClass(() => m.default);
+      })
+      .catch((err) => console.error("Failed to load jsPDF:", err));
+
+    // Preload logo image and convert to Base64
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          setLogoDataUrl(canvas.toDataURL("image/png"));
+        }
+      } catch (err) {
+        console.error("Failed to convert image to Data URL:", err);
+      }
+    };
+    img.onerror = () => {
+      console.error("Failed to load logo image");
+    };
+    img.src = "/brain-icon.png";
+  }, []);
 
   const abortRef = useRef<AbortController | null>(null);
   const [extractionCache, setExtractionCache] = useState<Map<string, { text: string; criticals: LabCritical[] }>>(new Map());
@@ -621,38 +666,33 @@ export default function QueryBox() {
     await runLabExtraction(updatedFiles);
   }
 
-  async function handlePrint() {
-    if (!result) return;
-    const win = window.open("", "_blank");
-    if (win) {
-      win.document.write("<html><head><title>Generating PDF...</title></head><body style='display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;'><div style='text-align:center;'><p>Generating Clinical PDF...</p><p style='font-size:12px;color:#999;'>Please wait while the swarm consensus report is prepared.</p></div></body></html>");
-    }
+  function handlePrint() {
+    if (!result || !jsPdfClass) return;
     setGeneratingPdf(true);
     try {
-      const blob = await generateClinicalPDF(result.answer, question);
+      const blob = generateClinicalPDF(result.answer, question, jsPdfClass, logoDataUrl);
       const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
       if (win) {
-        win.location.href = url;
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
+        win.focus();
       } else {
         const a = document.createElement("a");
         a.href = url; a.download = "mediq-clinical-report.pdf";
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
       }
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (err) {
       console.error("PDF generation failed:", err);
-      if (win) win.close();
     } finally {
       setGeneratingPdf(false);
     }
   }
 
   async function handleShare() {
-    if (!result) return;
+    if (!result || !jsPdfClass) return;
     setSharingPdf(true);
     try {
-      const blob = await generateClinicalPDF(result.answer, question);
+      const blob = generateClinicalPDF(result.answer, question, jsPdfClass, logoDataUrl);
       const file = new File([blob], "mediq-clinical-report.pdf", { type: "application/pdf" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ title: "MEDIQ Clinical Assessment Report", text: "Clinical Assessment Report — MEDIQ AI", files: [file] });
@@ -663,8 +703,11 @@ export default function QueryBox() {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 10000);
       }
-    } catch (err) { if ((err as Error).name !== "AbortError") console.error("Share failed:", err); }
-    finally { setSharingPdf(false); }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") console.error("Share failed:", err);
+    } finally {
+      setSharingPdf(false);
+    }
   }
 
   const [stopped, setStopped] = useState(false);
@@ -1532,8 +1575,8 @@ export default function QueryBox() {
             text={result.answer}
             agentsCount={result.agents.length}
             hasDebate={hasDebate}
-            generatingPdf={generatingPdf}
-            sharingPdf={sharingPdf}
+            generatingPdf={generatingPdf || !jsPdfClass}
+            sharingPdf={sharingPdf || !jsPdfClass}
             handlePrint={handlePrint}
             handleShare={handleShare}
             hospitalDepartments={result.hospitalDepartments}

@@ -118,6 +118,28 @@ export function ReportView({ text }: { text: string }) {
 
     if (line.trim() === "") { i++; continue; }
 
+    // Collect code/diagram block
+    if (line.trim().startsWith("```")) {
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++;
+      elements.push(
+        <pre key={key++} className="font-mono text-xs p-4 my-4 rounded-xl border overflow-x-auto whitespace-pre leading-relaxed shadow-inner"
+          style={{
+            borderColor: "rgba(13, 148, 136, 0.25)",
+            backgroundColor: "rgba(13, 148, 136, 0.04)",
+            color: "var(--text)",
+          }}>
+          {codeLines.join("\n")}
+        </pre>
+      );
+      continue;
+    }
+
     // Collect pipe table block
     if (isTableLine(line)) {
       const tableLines: string[] = [];

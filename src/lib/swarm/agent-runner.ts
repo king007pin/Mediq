@@ -242,6 +242,18 @@ Write:
 Write a concise, patient-friendly summary (approximately 60 words) explaining the disease in plain, non-clinical, and non-medical language, so that non-medical people can read and understand what the disease is. Format this summary as a blockquote:
 > **Patient-Friendly Summary**: [Plain-language description of the disease, its mechanism, and standard symptoms, keeping it under 60 words].
 
+Provide a structured, text-based ASCII flow diagram (wrapped in a markdown code block starting with \`\`\`) showing the pathophysiology/mechanism or diagnostic path of the most likely diagnosis. Explain what happens and why step-by-step using text boxes and arrows (e.g., \`[Symptom/Trigger] --> [Pathology/Mechanism] --> [Clinical Outcome/Diagnosis]\`). Use vertical or horizontal alignments clearly. Example:
+\`\`\`
+[Trigger (e.g., Allergen/Infection)]
+       │ (triggers immune response)
+       ▼
+[Histamine/Mediator Release]
+       │ (causes bronchoconstriction)
+       ▼
+[Airway Narrowing & Wheezing (Asthma)]
+\`\`\`
+Explain the steps clearly inside the diagram to make it highly professional, visual, and easy to understand.
+
 Then explain:
 * Why this diagnosis best fits the case
 * Which findings support it
