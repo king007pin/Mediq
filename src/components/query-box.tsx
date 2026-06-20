@@ -452,6 +452,11 @@ export default function QueryBox() {
   const [jsPdfClass, setJsPdfClass] = useState<any>(null);
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
 
+  const [critiqueMessage, setCritiqueMessage] = useState("");
+  const [critiqueLoading, setCritiqueLoading] = useState(false);
+  const [critiqueStream, setCritiqueStream] = useState("");
+  const [critiqueStatus, setCritiqueStatus] = useState<string | null>(null);
+
   useEffect(() => {
     import("jspdf")
       .then((m) => {
@@ -896,6 +901,90 @@ export default function QueryBox() {
       });
       setFeedbackGiven(true);
     } finally { setFeedbackSending(false); }
+  }
+
+  async function sendCritique(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!result?.sessionId || !critiqueMessage.trim() || critiqueLoading) return;
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setCritiqueLoading(true);
+    setCritiqueStream("");
+    setCritiqueStatus("Preparing challenge...");
+    setStatus(null);
+
+    try {
+      const res = await fetch("/api/clinical-swarm/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: result.sessionId,
+          message: critiqueMessage,
+          patientContext: formatPatientContext(patientInfo) || undefined,
+          labText: labText || undefined,
+        }),
+        signal: ctrl.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? "Critique request failed");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          if (!part.startsWith("data: ")) continue;
+          try {
+            const payload = JSON.parse(part.slice(6)) as Record<string, unknown>;
+
+            if (payload.type === "status") {
+              setCritiqueStatus(payload.message as string);
+            } else if (payload.type === "synthesis_token") {
+              setCritiqueStatus(null);
+              setCritiqueStream((prev) => prev + (payload.token as string));
+            } else if (payload.type === "done") {
+              const p = payload as {
+                answer: string; agents: AgentReply[];
+                round1Agents: AgentReply[]; matches: Match[]; sessionId: number | null;
+                hospitalDepartments?: string[];
+                pgSubjects?: string[];
+                ddiFlags?: DDIFlag[];
+              };
+              setResult({
+                answer: p.answer, agents: p.agents,
+                round1Agents: p.round1Agents ?? [], matches: p.matches, sessionId: p.sessionId ?? null,
+                hospitalDepartments: p.hospitalDepartments ?? [],
+                pgSubjects: p.pgSubjects ?? [],
+                ddiFlags: p.ddiFlags ?? [],
+              });
+              setCritiqueMessage("");
+            } else if (payload.type === "error") {
+              throw new Error(payload.message as string);
+            }
+          } catch { /* skip malformed */ }
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        setStatus((err as Error).message);
+      }
+    } finally {
+      setCritiqueLoading(false);
+      setCritiqueStatus(null);
+      setCritiqueStream("");
+      abortRef.current = null;
+    }
   }
 
   const topCitation = useMemo(() => result?.matches?.[0], [result]);
@@ -1572,7 +1661,7 @@ export default function QueryBox() {
 
           {/* Report panel */}
           <ConsensusReport
-            text={result.answer}
+            text={critiqueStream || result.answer}
             agentsCount={result.agents.length}
             hasDebate={hasDebate}
             generatingPdf={generatingPdf || !jsPdfClass}
@@ -1634,6 +1723,71 @@ export default function QueryBox() {
             <p className="text-xs text-center" style={{ color: "var(--muted)" }}>
               Feedback recorded — system will learn from this session.
             </p>
+          )}
+
+          {/* Critique / Challenge form */}
+          {result.sessionId && (
+            <div className="rounded-xl border p-4 space-y-3 animate-fade-in"
+              style={{ borderColor: "var(--card-border)", backgroundColor: "var(--card)" }}>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: "var(--accent)" }} />
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+                  Challenge the Swarm (Clinician Critique Loop)
+                </span>
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  style={{ backgroundColor: "rgba(129,140,248,0.15)", color: "#818cf8" }}>
+                  Interactive Turn
+                </span>
+              </div>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                Clinicians can ask follow-up questions, request specific specialist reviews, or challenge the consensus report by providing new clinical insights, observations, or tests.
+              </p>
+              
+              <form onSubmit={sendCritique} className="space-y-3">
+                <textarea
+                  value={critiqueMessage}
+                  onChange={(e) => setCritiqueMessage(e.target.value)}
+                  disabled={critiqueLoading}
+                  required
+                  rows={2}
+                  className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none resize-none leading-relaxed"
+                  style={{ borderColor: "var(--card-border)", backgroundColor: "var(--bg)", color: "var(--text)" }}
+                  placeholder="Ask a follow-up or challenge the assessment (e.g. 'What if the patient's HbA1c is actually 11.5%? Re-evaluate.')"
+                />
+                
+                <div className="flex items-center justify-between">
+                  {critiqueStatus ? (
+                    <span className="text-xs animate-pulse" style={{ color: "var(--muted)" }}>
+                      {critiqueStatus}
+                    </span>
+                  ) : (
+                    <div />
+                  )}
+                  <button
+                    type="submit"
+                    disabled={critiqueLoading || !critiqueMessage.trim()}
+                    className="rounded-xl px-4 py-2 text-xs font-semibold shadow transition disabled:opacity-50"
+                    style={{ background: "linear-gradient(90deg, #818cf8, #f472b6)", color: "#0f172a" }}
+                  >
+                    {critiqueLoading ? "Processing Critique..." : "Submit Challenge"}
+                  </button>
+                </div>
+              </form>
+              
+              {critiqueLoading && (
+                <div className="space-y-1.5 pt-1.5">
+                  <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-zinc-950/60 border border-zinc-800/60 shadow-[inner_0_1px_2px_rgba(0,0,0,0.4)]">
+                    <div className="absolute inset-y-0 rounded-full"
+                      style={{
+                        width: "40%",
+                        background: "linear-gradient(90deg, #818cf8, #f472b6)",
+                        boxShadow: "0 0 10px rgba(129,140,248,0.5), inset 0 1px 1px rgba(255,255,255,0.15)",
+                        animation: "pulse-progress 1.8s ease-in-out infinite"
+                      }} />
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Citations */}

@@ -108,6 +108,8 @@ export const querySessions = pgTable("query_sessions", {
   consensusSnippet: encryptedText("consensus_snippet"),
   hadGap: boolean("had_gap").default(false).notNull(),
   gapTopic: text("gap_topic"),
+  round1Agents: jsonb("round1_agents").$type<any[]>(),
+  round2Agents: jsonb("round2_agents").$type<any[]>(),
   createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
 });
 

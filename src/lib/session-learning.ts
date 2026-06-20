@@ -36,6 +36,8 @@ export async function logSession(opts: {
   agentAnswers: string[];
   consensusSnippet?: string;
   userId?: string;
+  round1Agents?: any[];
+  round2Agents?: any[];
 }): Promise<number | null> {
   try {
     const hadGap = detectGap(opts.matchCount, opts.maxScore, opts.agentAnswers);
@@ -53,6 +55,8 @@ export async function logSession(opts: {
         consensusSnippet: opts.consensusSnippet ?? null,
         hadGap,
         gapTopic,
+        round1Agents: opts.round1Agents ?? null,
+        round2Agents: opts.round2Agents ?? null,
       })
       .returning({ id: querySessions.id });
 

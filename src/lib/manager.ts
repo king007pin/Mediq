@@ -99,6 +99,8 @@ export async function runManagedSwarm(params: {
     agentCount: number;
     agentAnswers: string[];
     consensusSnippet?: string;
+    round1Agents?: any[];
+    round2Agents?: any[];
   }) => Promise<number | null>;
   providerOverride?: BYOKConfig;
 }): Promise<ManagerResult> {
@@ -176,6 +178,8 @@ export async function runManagedSwarm(params: {
     agentCount: swarm.agents.length,
     agentAnswers: swarm.agents.map((a) => a.message),
     consensusSnippet,
+    round1Agents: swarm.round1Agents,
+    round2Agents: swarm.round2Agents,
   }).catch(() => null) ?? null;
 
   // ── Persist manager event ────────────────────────────────────────────────

@@ -510,48 +510,57 @@ export async function nvidiaChatStream(
   return new ReadableStream<string>({
     async pull(controller) {
       try {
-        const { done, value } = await reader.read();
-        if (done) {
-          if (buffer.trim()) {
-            const lines = buffer.split("\n");
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6);
-                if (data === "[DONE]") {
-                  controller.close();
-                  return;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            if (buffer.trim()) {
+              const lines = buffer.split("\n");
+              for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                  const data = line.slice(6);
+                  if (data === "[DONE]") {
+                    controller.close();
+                    return;
+                  }
+                  try {
+                    const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+                    const delta = parsed.choices?.[0]?.delta?.content;
+                    if (delta) controller.enqueue(delta);
+                  } catch { /* ignore */ }
                 }
-                try {
-                  const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-                  const delta = parsed.choices?.[0]?.delta?.content;
-                  if (delta) controller.enqueue(delta);
-                } catch { /* ignore */ }
               }
             }
+            controller.close();
+            return;
           }
-          controller.close();
-          return;
-        }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") {
-              controller.close();
+          let enqueued = false;
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") {
+                controller.close();
+                try {
+                  await reader.cancel();
+                } catch {}
+                return;
+              }
               try {
-                await reader.cancel();
-              } catch {}
-              return;
+                const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (delta) {
+                  controller.enqueue(delta);
+                  enqueued = true;
+                }
+              } catch { /* ignore */ }
             }
-            try {
-              const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-              const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) controller.enqueue(delta);
-            } catch { /* ignore */ }
+          }
+          if (enqueued) {
+            return;
           }
         }
       } catch (err) {
