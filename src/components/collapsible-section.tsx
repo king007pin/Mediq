@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useId } from "react";
 
 export type SectionFeature = { label: string; sub?: string };
 
@@ -26,15 +26,15 @@ export default function CollapsibleSection({
   defaultOpen = false,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const contentId = useId();
 
   return (
     <div
       className="w-full overflow-hidden rounded-3xl border shadow-lg"
       style={{ backgroundColor: "var(--card)", borderColor: "var(--card-border)" }}
     >
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full cursor-pointer flex-col gap-4 px-3 sm:px-6 py-4 sm:py-5 text-left transition hover:opacity-90"
+      <div
+        className="flex w-full flex-col gap-4 px-3 sm:px-6 py-4 sm:py-5 text-left transition"
         style={{
           backgroundColor: open
             ? "color-mix(in srgb, var(--accent) 5%, var(--card))"
@@ -62,8 +62,12 @@ export default function CollapsibleSection({
             )}
           </div>
 
-          <span
-            className="w-24 shrink-0 text-center rounded-full border py-1 text-xs font-semibold select-none sm:self-start"
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls={contentId}
+            className="w-24 shrink-0 text-center rounded-full border py-1 text-xs font-semibold select-none sm:self-start cursor-pointer hover:opacity-90 transition"
             style={{
               borderColor: "var(--accent)",
               color: "var(--accent)",
@@ -71,7 +75,7 @@ export default function CollapsibleSection({
             }}
           >
             {open ? "Collapse ▲" : "Expand ▼"}
-          </span>
+          </button>
         </div>
 
         {/* Feature pills — always visible, 4-col symmetric grid */}
@@ -101,10 +105,10 @@ export default function CollapsibleSection({
 
         {/* Preview — always visible extra content below pills */}
         {preview && <div className="w-full">{preview}</div>}
-      </button>
+      </div>
 
       {open && (
-        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 space-y-5">
+        <div id={contentId} className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2 space-y-5">
           {header}
           {children}
         </div>
@@ -112,3 +116,4 @@ export default function CollapsibleSection({
     </div>
   );
 }
+
