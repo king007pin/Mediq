@@ -54,6 +54,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, latencyMs: Date.now() - start, model, snippet: reply.slice(0, 80) });
   } catch (err) {
     const e = err as Error & { status?: number };
-    return NextResponse.json({ ok: false, latencyMs: Date.now() - start, error: e.message, status: e.status }, { status: 200 });
+    return NextResponse.json({ ok: false, latencyMs: Date.now() - start, error: e.message, status: e.status }, { status: e.status ?? 502 });
   }
 }
