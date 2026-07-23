@@ -88,6 +88,97 @@ export const MODEL_COLORS = [
 
 // ── PDF generation ──────────────────────────────────────────────────────────
 
+export function sanitizePdfText(str: string): string {
+  if (typeof str !== "string" || !str) return "";
+
+  return str
+    // Temperature & degree units
+    .replace(/°C/g, "deg C")
+    .replace(/°F/g, "deg F")
+    .replace(/°/g, "deg")
+    // Microgram & micro units
+    .replace(/µg/g, "ug")
+    .replace(/μg/g, "ug")
+    .replace(/µ/g, "u")
+    // Inequalities & Math
+    .replace(/≥/g, ">=")
+    .replace(/≤/g, "<=")
+    .replace(/±/g, "+/-")
+    .replace(/≠/g, "!=")
+    .replace(/≈/g, "~=")
+    .replace(/×/g, "x")
+    .replace(/÷/g, "/")
+    .replace(/∞/g, "inf")
+    // Arrows
+    .replace(/→/g, "->")
+    .replace(/←/g, "<-")
+    .replace(/↔/g, "<->")
+    .replace(/⇒/g, "=>")
+    .replace(/⇐/g, "<=")
+    .replace(/⇔/g, "<=>")
+    // Greek letters (lowercase)
+    .replace(/α/g, "alpha")
+    .replace(/β/g, "beta")
+    .replace(/γ/g, "gamma")
+    .replace(/δ/g, "delta")
+    .replace(/ε/g, "epsilon")
+    .replace(/ζ/g, "zeta")
+    .replace(/η/g, "eta")
+    .replace(/θ/g, "theta")
+    .replace(/ι/g, "iota")
+    .replace(/κ/g, "kappa")
+    .replace(/λ/g, "lambda")
+    .replace(/μ/g, "mu")
+    .replace(/ν/g, "nu")
+    .replace(/ξ/g, "xi")
+    .replace(/ο/g, "omicron")
+    .replace(/π/g, "pi")
+    .replace(/ρ/g, "rho")
+    .replace(/[σς]/g, "sigma")
+    .replace(/τ/g, "tau")
+    .replace(/υ/g, "upsilon")
+    .replace(/φ/g, "phi")
+    .replace(/χ/g, "chi")
+    .replace(/ψ/g, "psi")
+    .replace(/ω/g, "omega")
+    // Greek letters (uppercase)
+    .replace(/Α/g, "Alpha")
+    .replace(/Β/g, "Beta")
+    .replace(/Γ/g, "Gamma")
+    .replace(/Δ/g, "Delta")
+    .replace(/Ε/g, "Epsilon")
+    .replace(/Ζ/g, "Zeta")
+    .replace(/Η/g, "Eta")
+    .replace(/Θ/g, "Theta")
+    .replace(/Ι/g, "Iota")
+    .replace(/Κ/g, "Kappa")
+    .replace(/Λ/g, "Lambda")
+    .replace(/Μ/g, "Mu")
+    .replace(/Ν/g, "Nu")
+    .replace(/Ξ/g, "Xi")
+    .replace(/Ο/g, "Omicron")
+    .replace(/Π/g, "Pi")
+    .replace(/Ρ/g, "Rho")
+    .replace(/Σ/g, "Sigma")
+    .replace(/Τ/g, "Tau")
+    .replace(/Υ/g, "Upsilon")
+    .replace(/Φ/g, "Phi")
+    .replace(/Χ/g, "Chi")
+    .replace(/Ψ/g, "Psi")
+    .replace(/Ω/g, "Omega")
+    // Common Unicode punctuation / formatting
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/…/g, "...")
+    .replace(/•/g, "-")
+    .replace(/©/g, "(C)")
+    .replace(/®/g, "(R)")
+    .replace(/™/g, "(TM)")
+    // Filter out remaining unhandled non-ASCII characters ([^\x00-\x7F])
+    .replace(/[^\x00-\x7F]/g, "");
+}
+
 function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any, logoDataUrl: string | null): Blob {
   const doc = new jsPDFClass({ orientation: "portrait", unit: "mm", format: "a4" });
 
@@ -116,20 +207,20 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
     fc(HEADER_BG); doc.rect(0, 0, PW, 46, "F");
     if (logoDataUrl) doc.addImage(logoDataUrl, "PNG", 14, 8, 22, 22);
     doc.setFont("times", "bold"); doc.setFontSize(22); tc(NAVY);
-    doc.text("MEDIQ", 40, 21);
+    doc.text(sanitizePdfText("MEDIQ"), 40, 21);
     doc.setFont("times", "normal"); doc.setFontSize(8.5); tc(TEAL);
-    doc.text("CLINICAL INTELLIGENCE", 40, 27);
+    doc.text(sanitizePdfText("CLINICAL INTELLIGENCE"), 40, 27);
     const now = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
     doc.setFont("times", "normal"); doc.setFontSize(7.5); tc(MUTED);
-    doc.text(now, MR, 18, { align: "right" });
-    doc.text("AI-Assisted Assessment", MR, 24, { align: "right" });
-    doc.text("For Licensed Clinicians Only", MR, 30, { align: "right" });
+    doc.text(sanitizePdfText(now), MR, 18, { align: "right" });
+    doc.text(sanitizePdfText("AI-Assisted Assessment"), MR, 24, { align: "right" });
+    doc.text(sanitizePdfText("For Licensed Clinicians Only"), MR, 30, { align: "right" });
     dc(TEAL); doc.setLineWidth(0.7); doc.line(ML, 35, MR, 35);
     doc.setFont("times", "bold"); doc.setFontSize(13); tc(NAVY);
-    doc.text("CLINICAL ASSESSMENT REPORT", PW / 2, 42, { align: "center" });
+    doc.text(sanitizePdfText("CLINICAL ASSESSMENT REPORT"), PW / 2, 42, { align: "center" });
     if (query.trim()) {
       doc.setFont("times", "italic"); doc.setFontSize(8); tc(MUTED);
-      const qLines = doc.splitTextToSize(`Query: ${query}`, CW) as string[];
+      const qLines = doc.splitTextToSize(sanitizePdfText(`Query: ${query}`), CW) as string[];
       doc.text(qLines, PW / 2, 48, { align: "center" });
       // separator and content start track actual query height (each line ≈4mm at 8pt)
       const qEndY = 48 + (qLines.length - 1) * 4;
@@ -143,21 +234,21 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
 
   function drawFooter() {
     dc(LIGHT); doc.setLineWidth(0.25); doc.line(ML, PH - 22, MR, PH - 22);
-    const disc = "DISCLAIMER: This document is generated by MEDIQ Artificial Intelligence and is intended solely as a clinical decision-support tool for use by licensed medical professionals. It does not constitute a final diagnosis, treatment recommendation, or professional medical advice. All AI-generated findings must be independently verified through physical examination, validated diagnostic investigations, and the attending clinician's professional judgment. Direct use of this output for patient management without clinical corroboration may be hazardous. Not intended for direct patient communication. © MEDIQ Clinical Intelligence.";
+    const disc = sanitizePdfText("DISCLAIMER: This document is generated by MEDIQ Artificial Intelligence and is intended solely as a clinical decision-support tool for use by licensed medical professionals. It does not constitute a final diagnosis, treatment recommendation, or professional medical advice. All AI-generated findings must be independently verified through physical examination, validated diagnostic investigations, and the attending clinician's professional judgment. Direct use of this output for patient management without clinical corroboration may be hazardous. Not intended for direct patient communication. © MEDIQ Clinical Intelligence.");
     doc.setFont("times", "italic"); doc.setFontSize(6); tc(DISC);
     const dlines = doc.splitTextToSize(disc, CW) as string[];
     doc.text(dlines, ML, PH - 19);
     doc.setFont("times", "normal"); doc.setFontSize(7); tc(MUTED);
-    doc.text(`Page ${page}`, PW / 2, PH - 7, { align: "center" });
+    doc.text(sanitizePdfText(`Page ${page}`), PW / 2, PH - 7, { align: "center" });
   }
 
   function newPage() {
     drawFooter(); doc.addPage(); page++;
     fc(HEADER_BG); doc.rect(0, 0, PW, 15, "F");
     doc.setFont("times", "bold"); doc.setFontSize(9); tc(NAVY);
-    doc.text("MEDIQ", ML, 9);
+    doc.text(sanitizePdfText("MEDIQ"), ML, 9);
     doc.setFont("times", "normal"); doc.setFontSize(8); tc(TEAL);
-    doc.text("Clinical Assessment Report (continued)", ML + 13, 9);
+    doc.text(sanitizePdfText("Clinical Assessment Report (continued)"), ML + 13, 9);
     dc(TEAL); doc.setLineWidth(0.4); doc.line(ML, 13, MR, 13);
     y = 21;
   }
@@ -223,7 +314,7 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
         doc.setFontSize(8.5);
         tc(DARK);
         codeLines.forEach((cl, idx) => {
-          doc.text(cl, ML + 4, y + 4.5 + idx * 4.5);
+          doc.text(sanitizePdfText(cl), ML + 4, y + 4.5 + idx * 4.5);
         });
         y += blockH + 3;
       }
@@ -244,12 +335,12 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
 
       // Pre-wrap all rows so we can measure height before drawing
       doc.setFont("times", "bold"); doc.setFontSize(CELL_FS);
-      const hdrWrapped = hdrs.map(h => doc.splitTextToSize(h, colW - CELL_HPad * 2) as string[]);
+      const hdrWrapped = hdrs.map(h => doc.splitTextToSize(sanitizePdfText(h), colW - CELL_HPad * 2) as string[]);
       const hdrH = calcRowH(hdrWrapped);
 
       doc.setFont("times", "normal"); doc.setFontSize(CELL_FS);
       const dataWrapped = drows.map(row =>
-        row.map(cell => doc.splitTextToSize(cell || "", colW - CELL_HPad * 2) as string[])
+        row.map(cell => doc.splitTextToSize(sanitizePdfText(cell || ""), colW - CELL_HPad * 2) as string[])
       );
       const dataHs = dataWrapped.map(rw => calcRowH(rw));
 
@@ -261,7 +352,7 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
         doc.setFont("times", "bold"); doc.setFontSize(CELL_FS); tc(WHITE);
         hdrWrapped.forEach((wlines, ci) => {
           wlines.forEach((wl, li) => {
-            doc.text(wl, ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * CELL_LINE_H);
+            doc.text(sanitizePdfText(wl), ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * CELL_LINE_H);
           });
         });
         for (let ci = 1; ci < nCols; ci++) {
@@ -301,7 +392,7 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
         rowWrapped.forEach((wlines, ci) => {
           tc(ci === 0 ? DARK : MUTED);
           wlines.forEach((wl, li) => {
-            doc.text(wl, ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * CELL_LINE_H);
+            doc.text(sanitizePdfText(wl), ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * CELL_LINE_H);
           });
         });
         // Row bottom border + column dividers
@@ -333,36 +424,37 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
       if (clean.startsWith("•") || clean.startsWith("–") || clean.startsWith("-")) {
         clean = clean.slice(1).trim();
       }
-      doc.text(clean, ML, y);
-      const tw = doc.getTextWidth(clean);
+      const sClean = sanitizePdfText(clean);
+      doc.text(sClean, ML, y);
+      const tw = doc.getTextWidth(sClean);
       dc(TEAL); doc.setLineWidth(0.4); doc.line(ML, y + 1.1, ML + tw, y + 1.1);
       y += 6; i++;
       continue;
     }
 
     if (isNumList(line)) {
-      const wrapped = doc.splitTextToSize(line.trim(), CW - 5) as string[];
+      const wrapped = doc.splitTextToSize(sanitizePdfText(line.trim()), CW - 5) as string[];
       checkY(wrapped.length * 5.2 + 1);
       doc.setFont("times", "normal"); doc.setFontSize(11.5); tc(DARK);
-      wrapped.forEach((wl, wi) => { doc.text(wl, ML + (wi > 0 ? 6 : 3), y); y += 5.2; });
+      wrapped.forEach((wl, wi) => { doc.text(sanitizePdfText(wl), ML + (wi > 0 ? 6 : 3), y); y += 5.2; });
       i++; continue;
     }
 
     if (isBull(line)) {
       const content = line.trim().replace(/^[-•]\s{1,3}/, "");
-      const wrapped = doc.splitTextToSize(content, CW - 9) as string[];
+      const wrapped = doc.splitTextToSize(sanitizePdfText(content), CW - 9) as string[];
       checkY(wrapped.length * 5.2 + 1);
       doc.setFont("times", "normal"); doc.setFontSize(11.5);
-      tc(TEAL); doc.text("–", ML + 2, y);
+      tc(TEAL); doc.text("-", ML + 2, y);
       tc(MUTED);
-      wrapped.forEach((wl, wi) => { if (wi > 0) checkY(5.2); doc.text(wl, ML + 7, y); y += 5.2; });
+      wrapped.forEach((wl, wi) => { if (wi > 0) checkY(5.2); doc.text(sanitizePdfText(wl), ML + 7, y); y += 5.2; });
       i++; continue;
     }
 
-    const wrapped = doc.splitTextToSize(line, CW) as string[];
+    const wrapped = doc.splitTextToSize(sanitizePdfText(line), CW) as string[];
     checkY(wrapped.length * 5.2 + 1);
     doc.setFont("times", "normal"); doc.setFontSize(11.5); tc(DARK);
-    wrapped.forEach(wl => { doc.text(wl, ML, y); y += 5.2; });
+    wrapped.forEach(wl => { doc.text(sanitizePdfText(wl), ML, y); y += 5.2; });
     i++;
   }
 
