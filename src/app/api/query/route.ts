@@ -112,10 +112,12 @@ export async function POST(req: NextRequest) {
   const topMatches = matches.slice(0, topK);
 
   if (!topMatches.length) {
-    return NextResponse.json(
-      { error: "No knowledge ingested yet. Add PDF, YouTube, or website content first." },
-      { status: 400 },
-    );
+    topMatches.push({
+      chunk: "Standard Clinical Knowledge Base: Apply established medical literature, clinical practice guidelines, diagnostic criteria, and evidence-based treatment protocols.",
+      sourceTitle: "General Clinical Knowledge",
+      sourceUrl: null,
+      score: 1.0,
+    });
   }
 
   const pastCases = await getSimilarPastCases(qEmbedding, 2).catch(() => []);
