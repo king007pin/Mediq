@@ -1,6 +1,6 @@
 // Keep the schema entrypoint present so models can define tables and run
 // `npx drizzle-kit push` without bootstrapping Drizzle config first.
-import { boolean, customType, integer, jsonb, pgEnum, pgTable, real, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, real, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { encryptPhi, decryptPhi, isEncrypted } from "../lib/phi-vault";
 
@@ -34,16 +34,23 @@ const encryptedText = customType<{ data: string; driverData: string }>({
 
 export const sourceTypeEnum = pgEnum("source_type", ["pdf", "youtube", "website", "text"]);
 
-export const sources = pgTable("sources", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  type: sourceTypeEnum("type").notNull(),
-  url: text("url"),
-  description: text("description"),
-  urlHash: text("url_hash"),
-  contentHash: text("content_hash"),
-  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
-});
+export const sources = pgTable(
+  "sources",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    type: sourceTypeEnum("type").notNull(),
+    url: text("url"),
+    description: text("description"),
+    urlHash: text("url_hash"),
+    contentHash: text("content_hash"),
+    createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("sources_content_hash_idx").on(table.contentHash),
+    index("sources_url_hash_idx").on(table.urlHash),
+  ]
+);
 
 export const embeddings = pgTable("embeddings", {
   id: serial("id").primaryKey(),
@@ -97,32 +104,44 @@ export type SourceFeed = typeof sourceFeeds.$inferSelect;
 export type SourceFeedInsert = typeof sourceFeeds.$inferInsert;
 
 // Query session log
-export const querySessions = pgTable("query_sessions", {
-  id: serial("id").primaryKey(),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-  query: encryptedText("query").notNull(),
-  queryEmbedding: vector(1024)("query_embedding"),
-  matchCount: integer("match_count").default(0).notNull(),
-  maxScore: real("max_score").default(0).notNull(),
-  agentCount: integer("agent_count").default(0).notNull(),
-  consensusSnippet: encryptedText("consensus_snippet"),
-  hadGap: boolean("had_gap").default(false).notNull(),
-  gapTopic: text("gap_topic"),
-  round1Agents: jsonb("round1_agents").$type<any[]>(),
-  round2Agents: jsonb("round2_agents").$type<any[]>(),
-  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
-});
+export const querySessions = pgTable(
+  "query_sessions",
+  {
+    id: serial("id").primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    query: encryptedText("query").notNull(),
+    queryEmbedding: vector(1024)("query_embedding"),
+    matchCount: integer("match_count").default(0).notNull(),
+    maxScore: real("max_score").default(0).notNull(),
+    agentCount: integer("agent_count").default(0).notNull(),
+    consensusSnippet: encryptedText("consensus_snippet"),
+    hadGap: boolean("had_gap").default(false).notNull(),
+    gapTopic: text("gap_topic"),
+    round1Agents: jsonb("round1_agents").$type<any[]>(),
+    round2Agents: jsonb("round2_agents").$type<any[]>(),
+    createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("query_sessions_had_gap_created_at_idx").on(table.hadGap, table.createdAt),
+  ]
+);
 
 // Doctor feedback on sessions
-export const sessionFeedback = pgTable("session_feedback", {
-  id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull().references(() => querySessions.id, { onDelete: "cascade" }),
-  rating: integer("rating").notNull(),
-  helpful: boolean("helpful").notNull(),
-  issueType: text("issue_type"),
-  comment: text("comment"),
-  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
-});
+export const sessionFeedback = pgTable(
+  "session_feedback",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id").notNull().references(() => querySessions.id, { onDelete: "cascade" }),
+    rating: integer("rating").notNull(),
+    helpful: boolean("helpful").notNull(),
+    issueType: text("issue_type"),
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("session_feedback_session_id_idx").on(table.sessionId),
+  ]
+);
 
 // Knowledge gaps — topics that repeatedly had inadequate sources.
 // W44: `topic` and `pubmedQuery` are derived from user queries that may contain
@@ -141,22 +160,28 @@ export const knowledgeGaps = pgTable("knowledge_gaps", {
 });
 
 // Manager audit log — one row per query
-export const managerEvents = pgTable("manager_events", {
-  id: serial("id").primaryKey(),
-  sessionId: integer("session_id").references(() => querySessions.id, { onDelete: "set null" }),
-  complexity: text("complexity").notNull().default("moderate"),   // simple | moderate | complex | emergency
-  isMedical: boolean("is_medical").default(true).notNull(),
-  isEmergency: boolean("is_emergency").default(false).notNull(),
-  emergencyTriggers: jsonb("emergency_triggers").$type<string[]>(),
-  agentCountSelected: integer("agent_count_selected").default(3).notNull(),
-  totalLatencyMs: integer("total_latency_ms"),
-  perAgentLatencyMs: jsonb("per_agent_latency_ms").$type<Record<string, number>>(),
-  escalationTriggered: boolean("escalation_triggered").default(false).notNull(),
-  preCheckPassed: boolean("pre_check_passed").default(true).notNull(),
-  postCheckPassed: boolean("post_check_passed").default(true).notNull(),
-  agentErrors: integer("agent_errors").default(0).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
-});
+export const managerEvents = pgTable(
+  "manager_events",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id").references(() => querySessions.id, { onDelete: "set null" }),
+    complexity: text("complexity").notNull().default("moderate"),   // simple | moderate | complex | emergency
+    isMedical: boolean("is_medical").default(true).notNull(),
+    isEmergency: boolean("is_emergency").default(false).notNull(),
+    emergencyTriggers: jsonb("emergency_triggers").$type<string[]>(),
+    agentCountSelected: integer("agent_count_selected").default(3).notNull(),
+    totalLatencyMs: integer("total_latency_ms"),
+    perAgentLatencyMs: jsonb("per_agent_latency_ms").$type<Record<string, number>>(),
+    escalationTriggered: boolean("escalation_triggered").default(false).notNull(),
+    preCheckPassed: boolean("pre_check_passed").default(true).notNull(),
+    postCheckPassed: boolean("post_check_passed").default(true).notNull(),
+    agentErrors: integer("agent_errors").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: false }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("manager_events_session_id_idx").on(table.sessionId),
+  ]
+);
 
 export type ManagerEvent = typeof managerEvents.$inferSelect;
 export type ManagerEventInsert = typeof managerEvents.$inferInsert;
