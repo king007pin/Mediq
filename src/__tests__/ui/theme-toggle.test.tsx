@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, beforeEach } from "vitest";
 import ThemeToggle from "@/components/theme-toggle";

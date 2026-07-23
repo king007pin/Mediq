@@ -56,8 +56,10 @@ if (typeof window !== "undefined") {
 }
 
 afterEach(() => {
-  cleanup();
-  if (typeof window !== "undefined" && window.localStorage) {
-    window.localStorage.clear();
+  if (typeof window !== "undefined") {
+    cleanup();
+    if (window.localStorage) {
+      window.localStorage.clear();
+    }
   }
 });
