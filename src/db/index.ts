@@ -1,12 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const databaseUrl = process.env.DATABASE_URL;
-
-// Skip at build time — Next.js collects page data without a live DB
-if (!databaseUrl && process.env.NEXT_PHASE !== "phase-production-build") {
-  throw new Error("DATABASE_URL is required");
-}
+const databaseUrl = process.env.DATABASE_URL || "postgres://stub:stub@localhost:5432/stub";
 
 const globalForDb = globalThis as typeof globalThis & {
   __arenaNextJsPostgresqlPool?: Pool;
