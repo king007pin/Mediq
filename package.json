@@ -44,6 +44,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.17",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/heic-convert": "^2.1.0",
     "@types/jszip": "^3.4.0",
     "@types/node": "22.19.15",
@@ -53,6 +55,7 @@
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
+    "happy-dom": "^20.11.1",
     "postcss": "^8.5.15",
     "tailwindcss": "4.1.17",
     "tsx": "^4.19.2",

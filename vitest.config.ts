@@ -17,6 +17,8 @@ if (fs.existsSync(envTestPath)) {
 
 export default defineConfig({
   test: {
+    environment: "happy-dom",
+    setupFiles: ["./src/__tests__/setup.ts"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
