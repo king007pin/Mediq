@@ -228,25 +228,31 @@ async function postBatchWithRetry(
   body: object,
   shouldStop: () => boolean,
   maxAttempts = 4,
+  signal?: AbortSignal,
 ): Promise<BatchResult> {
   // Cancellable sleep: resolves early when shouldStop flips true. Polls every 250ms.
   const cancellableSleep = async (ms: number): Promise<boolean> => {
     const start = Date.now();
     while (Date.now() - start < ms) {
-      if (shouldStop()) return true;
+      if (shouldStop() || signal?.aborted) return true;
       await sleep(Math.min(250, ms - (Date.now() - start)));
     }
-    return shouldStop();
+    return shouldStop() || Boolean(signal?.aborted);
   };
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (shouldStop()) return { ...errorResult("Stopped", "0 / 0"), done: true };
+    if (shouldStop() || signal?.aborted) return { ...errorResult("Stopped", "0 / 0"), done: true };
     const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort();
+    if (signal) {
+      if (signal.aborted) ctrl.abort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    }
     const watchdog = setInterval(() => {
-      if (shouldStop()) ctrl.abort();
+      if (shouldStop() || signal?.aborted) ctrl.abort();
     }, 250);
     let res: Response;
     try {
-      if (shouldStop()) {
+      if (shouldStop() || signal?.aborted) {
         ctrl.abort();
         return { ...errorResult("Stopped", "0 / 0"), done: true };
       }
@@ -256,14 +262,14 @@ async function postBatchWithRetry(
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });
-      if (shouldStop()) {
+      if (shouldStop() || signal?.aborted) {
         ctrl.abort();
         return { ...errorResult("Stopped", "0 / 0"), done: true };
       }
     } catch (err) {
       const e = err as Error;
       // AbortController fired from shouldStop — exit cleanly so outer loop stops.
-      if (e.name === "AbortError" || ctrl.signal.aborted) {
+      if (e.name === "AbortError" || ctrl.signal.aborted || signal?.aborted) {
         return { ...errorResult("Stopped", "0 / 0"), done: true };
       }
       // Network failure (offline, dev server restart mid-batch). Retry once with
@@ -273,6 +279,9 @@ async function postBatchWithRetry(
       continue;
     } finally {
       clearInterval(watchdog);
+      if (signal) {
+        signal.removeEventListener("abort", onAbort);
+      }
     }
     if (res.status === 429 || res.status === 503) {
       const retryAfterHdr = Number(res.headers.get("Retry-After"));
@@ -346,37 +355,57 @@ function StatpearlsCrawl() {
   // resets offset to 0 on `done`).
   const [justFinished, setJustFinished] = useState(false);
   const stopRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const loadStatus = useCallback(async () => {
-    const res = await fetch("/api/admin/crawl-statpearls", { cache: "no-store" });
-    const data = (await res.json()) as CrawlStatus;
-    setStatus(data);
-    setCurrentOffset(data.offset);
+  const loadStatus = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const res = await fetch("/api/admin/crawl-statpearls", { cache: "no-store", signal });
+      if (signal?.aborted) return;
+      const data = (await res.json()) as CrawlStatus;
+      if (signal?.aborted) return;
+      setStatus(data);
+      setCurrentOffset(data.offset);
+    } catch {
+      // ignore
+    }
   }, []);
 
   // W50 — fetch-on-mount; setState is network-driven (see insights-panel.tsx).
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void loadStatus(); }, [loadStatus]);
+  useEffect(() => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    void loadStatus(controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [loadStatus]);
 
   async function startCrawl() {
+    const signal = abortControllerRef.current?.signal;
     stopRef.current = false;
+    if (signal?.aborted) return;
     setCrawling(true);
     setJustFinished(false);
     setMsg("Crawling StatPearls…");
 
     let sessionTotal = 0;
-    while (!stopRef.current) {
+    while (!stopRef.current && !signal?.aborted) {
       const result = await postBatchWithRetry(
         "/api/admin/crawl-statpearls",
         { batchSize: 15 },
-        () => stopRef.current,
+        () => stopRef.current || Boolean(signal?.aborted),
+        4,
+        signal,
       );
+      if (signal?.aborted) return;
       if (result.reason) {
         setMsg(`Skipped — ${result.reason}`);
         break;
       }
       if (result.error) { setMsg(`Error: ${result.error}`); break; }
       sessionTotal += result.ingested;
+      if (signal?.aborted) return;
       setCurrentOffset(result.nextOffset);
       setTotalUrls(result.totalUrls);
       setMsg(`${result.progress} articles processed · ${sessionTotal} ingested this session`);
@@ -386,20 +415,28 @@ function StatpearlsCrawl() {
         break;
       }
     }
+    if (signal?.aborted) return;
     setCrawling(false);
-    await loadStatus();
+    await loadStatus(signal);
   }
 
   async function resetCrawl() {
-    await fetch("/api/admin/crawl-statpearls", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reset: true }),
-    });
-    setCurrentOffset(0);
-    setJustFinished(false);
-    setMsg("Crawl progress reset to beginning.");
-    await loadStatus();
+    const signal = abortControllerRef.current?.signal;
+    try {
+      await fetch("/api/admin/crawl-statpearls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+        signal,
+      });
+      if (signal?.aborted) return;
+      setCurrentOffset(0);
+      setJustFinished(false);
+      setMsg("Crawl progress reset to beginning.");
+      await loadStatus(signal);
+    } catch {
+      // ignore
+    }
   }
 
   const pct = totalUrls > 0 ? Math.round((currentOffset / totalUrls) * 100) : 0;
@@ -533,13 +570,16 @@ function GenericCrawlCard({ crawler }: { crawler: CrawlerMeta }) {
   // suppress the completion badge.
   const [justFinished, setJustFinished] = useState(false);
   const stopRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const apiBase = `/api/admin/crawl/${crawler.id}`;
 
-  const loadStatus = useCallback(async () => {
+  const loadStatus = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch(apiBase, { cache: "no-store" });
+      const res = await fetch(apiBase, { cache: "no-store", signal });
+      if (signal?.aborted) return;
       const data = (await res.json()) as CrawlStatus;
+      if (signal?.aborted) return;
       setStatus(data);
       setCurrentOffset(data.offset);
     } catch {
@@ -549,25 +589,38 @@ function GenericCrawlCard({ crawler }: { crawler: CrawlerMeta }) {
 
   // W50 — fetch-on-mount; setState is network-driven (see insights-panel.tsx).
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void loadStatus(); }, [loadStatus]);
+  useEffect(() => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    void loadStatus(controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [loadStatus]);
 
   async function startCrawl() {
+    const signal = abortControllerRef.current?.signal;
     stopRef.current = false;
+    if (signal?.aborted) return;
     setCrawling(true);
     setJustFinished(false);
     setSessionIngested(0);
     setMsg(`Crawling ${crawler.name}…`);
 
     let sessionTotal = 0;
-    while (!stopRef.current) {
+    while (!stopRef.current && !signal?.aborted) {
       const result = await postBatchWithRetry(
         apiBase,
         { batchSize: crawler.batchSize },
-        () => stopRef.current,
+        () => stopRef.current || Boolean(signal?.aborted),
+        4,
+        signal,
       );
+      if (signal?.aborted) return;
       if (result.reason) { setMsg(`Skipped — ${result.reason}`); break; }
       if (result.error) { setMsg(`Error: ${result.error}`); break; }
       sessionTotal += result.ingested;
+      if (signal?.aborted) return;
       setSessionIngested(sessionTotal);
       setCurrentOffset(result.nextOffset);
       setTotalUrls(result.totalUrls);
@@ -578,21 +631,29 @@ function GenericCrawlCard({ crawler }: { crawler: CrawlerMeta }) {
         break;
       }
     }
+    if (signal?.aborted) return;
     setCrawling(false);
-    await loadStatus();
+    await loadStatus(signal);
   }
 
   async function resetCrawl() {
-    await fetch(apiBase, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reset: true }),
-    });
-    setCurrentOffset(0);
-    setSessionIngested(0);
-    setJustFinished(false);
-    setMsg("Crawl progress reset to beginning.");
-    await loadStatus();
+    const signal = abortControllerRef.current?.signal;
+    try {
+      await fetch(apiBase, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+        signal,
+      });
+      if (signal?.aborted) return;
+      setCurrentOffset(0);
+      setSessionIngested(0);
+      setJustFinished(false);
+      setMsg("Crawl progress reset to beginning.");
+      await loadStatus(signal);
+    } catch {
+      // ignore
+    }
   }
 
   const pct = totalUrls > 0 ? Math.round((currentOffset / totalUrls) * 100) : 0;
@@ -781,62 +842,93 @@ export default function FeedPanel() {
   const [masterCompleted, setMasterCompleted] = useState(false);
   const masterStopRef = useRef(false);
   const autoRunRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { phase: masterBarPhase, opacity: masterBarOpacity } = useCompletionFade(masterCompleted);
 
-  const loadFeeds = useCallback(async () => {
+  const loadFeeds = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/admin/feeds");
+      const res = await fetch("/api/admin/feeds", { signal });
+      if (signal?.aborted) return;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { feeds: Feed[] };
+      if (signal?.aborted) return;
       setFeeds(data.feeds ?? []);
     } catch (err) {
+      if (signal?.aborted) return;
       setMsg(`Could not load feeds: ${(err as Error).message}`);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   }, []);
 
   // W50 — fetch-on-mount; setState is network-driven (see insights-panel.tsx).
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void loadFeeds(); }, [loadFeeds]);
+  useEffect(() => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    void loadFeeds(controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [loadFeeds]);
 
   async function seed() {
+    const signal = abortControllerRef.current?.signal;
     setSeeding(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/admin/seed", { method: "POST" });
+      const res = await fetch("/api/admin/seed", { method: "POST", signal });
+      if (signal?.aborted) return;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { seeded: number };
+      if (signal?.aborted) return;
       setMsg(`Seeded ${data.seeded} feed(s). Click "Refresh now" to start ingesting.`);
-      await loadFeeds();
-    } catch (err) { setMsg(`Seed failed: ${(err as Error).message}`); }
-    finally { setSeeding(false); }
+      await loadFeeds(signal);
+    } catch (err) {
+      if (signal?.aborted) return;
+      setMsg(`Seed failed: ${(err as Error).message}`);
+    } finally {
+      if (!signal?.aborted) setSeeding(false);
+    }
   }
 
   async function resetAndReseed() {
+    const signal = abortControllerRef.current?.signal;
     setSeeding(true);
     setMsg(null);
     try {
-      await fetch("/api/admin/feeds", { method: "DELETE" });
-      const res = await fetch("/api/admin/seed", { method: "POST" });
+      await fetch("/api/admin/feeds", { method: "DELETE", signal });
+      if (signal?.aborted) return;
+      const res = await fetch("/api/admin/seed", { method: "POST", signal });
+      if (signal?.aborted) return;
       const data = (await res.json()) as { seeded: number };
+      if (signal?.aborted) return;
       setMsg(`Reset complete. Seeded ${data.seeded} feed(s) with verified URLs. Click "Refresh now" to ingest.`);
-      await loadFeeds();
-    } catch (err) { setMsg(`Reset failed: ${(err as Error).message}`); }
-    finally { setSeeding(false); }
+      await loadFeeds(signal);
+    } catch (err) {
+      if (signal?.aborted) return;
+      setMsg(`Reset failed: ${(err as Error).message}`);
+    } finally {
+      if (!signal?.aborted) setSeeding(false);
+    }
   }
 
   async function refresh() {
+    const signal = abortControllerRef.current?.signal;
     setRefreshing(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/admin/refresh", { method: "POST" });
+      const res = await fetch("/api/admin/refresh", { method: "POST", signal });
+      if (signal?.aborted) return;
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
         processed?: number;
         results?: Array<{ name: string; ingested: number; error?: string; autoDisabled?: boolean }>;
       };
+      if (signal?.aborted) return;
       if (!res.ok || data.error) {
         setMsg(`Refresh error: ${data.error ?? `HTTP ${res.status}`}`);
       } else {
@@ -848,15 +940,19 @@ export default function FeedPanel() {
         if (disabled.length) summary += ` ${disabled.length} feed(s) auto-disabled after 3 consecutive errors.`;
         setMsg(summary);
       }
-      await loadFeeds();
+      await loadFeeds(signal);
     } catch (err) {
+      if (signal?.aborted) return;
       setMsg(`Refresh failed — ${(err as Error).message}. Check NEXT_PUBLIC_APP_URL env var on Vercel.`);
+    } finally {
+      if (!signal?.aborted) setRefreshing(false);
     }
-    finally { setRefreshing(false); }
   }
 
-  async function startMasterCrawl() {
+  async function startMasterCrawl(overrideSignal?: AbortSignal) {
+    const signal = overrideSignal ?? abortControllerRef.current?.signal;
     masterStopRef.current = false;
+    if (signal?.aborted) return;
     setMasterCrawling(true);
     setMasterCompleted(false);
     setMasterProgress(0);
@@ -865,17 +961,23 @@ export default function FeedPanel() {
     let totalIngested = 0;
 
     // 1. Crawl StatPearls (loop until done or stopped)
-    setMasterMsg("Crawling StatPearls (Clinical Reference) (1 / 23)…");
-    setMasterProgress(1);
+    if (!signal?.aborted) {
+      setMasterMsg("Crawling StatPearls (Clinical Reference) (1 / 23)…");
+      setMasterProgress(1);
+    }
     try {
-      while (!masterStopRef.current) {
+      while (!masterStopRef.current && !signal?.aborted) {
         const data = await postBatchWithRetry(
           "/api/admin/crawl-statpearls",
           { batchSize: 15 },
-          () => masterStopRef.current,
+          () => masterStopRef.current || Boolean(signal?.aborted),
+          4,
+          signal,
         );
+        if (signal?.aborted) return;
         if (data.reason || data.error) break;
         totalIngested += data.ingested ?? 0;
+        if (signal?.aborted) return;
         setMasterIngested(totalIngested);
         if (data.done) break;
       }
@@ -885,19 +987,24 @@ export default function FeedPanel() {
 
     // 2. Crawl all other 22 sources
     for (let i = 0; i < CRAWLER_LIST.length; i++) {
-      if (masterStopRef.current) break;
+      if (masterStopRef.current || signal?.aborted) break;
       const crawler = CRAWLER_LIST[i];
+      if (signal?.aborted) return;
       setMasterMsg(`Crawling ${crawler.name} (${i + 2} / 23)…`);
       setMasterProgress(i + 2);
       try {
-        while (!masterStopRef.current) {
+        while (!masterStopRef.current && !signal?.aborted) {
           const data = await postBatchWithRetry(
             `/api/admin/crawl/${crawler.id}`,
             { batchSize: crawler.batchSize },
-            () => masterStopRef.current,
+            () => masterStopRef.current || Boolean(signal?.aborted),
+            4,
+            signal,
           );
+          if (signal?.aborted) return;
           if (data.reason || data.error) break;
           totalIngested += data.ingested ?? 0;
+          if (signal?.aborted) return;
           setMasterIngested(totalIngested);
           if (data.done) break;
         }
@@ -905,22 +1012,30 @@ export default function FeedPanel() {
         // skip failed crawler, continue
       }
     }
+    if (signal?.aborted) return;
     setMasterMsg(
       masterStopRef.current
         ? `Stopped — ${totalIngested} article(s) ingested from 23 sources.`
         : `Done — ${totalIngested} article(s) ingested from 23 sources.`
     );
-    if (!masterStopRef.current) setMasterCompleted(true);
-    setMasterCrawling(false);
+    if (!masterStopRef.current && !signal?.aborted) setMasterCompleted(true);
+    if (!signal?.aborted) setMasterCrawling(false);
   }
 
   async function toggleFeed(id: number, enabled: boolean) {
-    await fetch("/api/admin/feeds", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, enabled }),
-    });
-    setFeeds((prev) => prev.map((f) => (f.id === id ? { ...f, enabled } : f)));
+    const signal = abortControllerRef.current?.signal;
+    try {
+      await fetch("/api/admin/feeds", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, enabled }),
+        signal,
+      });
+      if (signal?.aborted) return;
+      setFeeds((prev) => prev.map((f) => (f.id === id ? { ...f, enabled } : f)));
+    } catch {
+      // ignore
+    }
   }
 
   // Auto-trigger feed refresh + master crawl on page load.
@@ -933,6 +1048,8 @@ export default function FeedPanel() {
   useEffect(() => {
     if (autoRunRef.current) return;
     autoRunRef.current = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     const KEY = "mediq-last-auto-crawl";
     const SIX_HOURS = 6 * 3600 * 1000;
     let last = 0;
@@ -941,17 +1058,25 @@ export default function FeedPanel() {
 
     void (async () => {
       try {
-        const res = await fetch("/api/admin/refresh", { method: "POST" });
+        const res = await fetch("/api/admin/refresh", { method: "POST", signal });
+        if (signal.aborted) return;
         if (res.status === 401 || res.status === 403) return; // non-admin, skip silently
       } catch { /* network blip, skip */ return; }
+      if (signal.aborted) return;
       try { localStorage.setItem(KEY, String(Date.now())); } catch { /* ignore */ }
       // Probe master-crawl endpoint admin gating before kicking off the long-running loop
       try {
-        const probe = await fetch("/api/admin/crawl-statpearls", { cache: "no-store" });
+        const probe = await fetch("/api/admin/crawl-statpearls", { cache: "no-store", signal });
+        if (signal.aborted) return;
         if (probe.status === 401 || probe.status === 403) return;
       } catch { return; }
-      void startMasterCrawl();
+      if (signal.aborted) return;
+      void startMasterCrawl(signal);
     })();
+
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   const indiaFeeds = feeds.filter((f) =>
@@ -1030,7 +1155,7 @@ export default function FeedPanel() {
         <div className="flex justify-center">
           {!masterCrawling ? (
             <button
-              onClick={startMasterCrawl}
+              onClick={() => void startMasterCrawl()}
               className="rounded-full px-8 py-2.5 text-sm font-bold uppercase tracking-wide transition hover:opacity-90 shadow"
               style={{
                 backgroundColor: "var(--accent)",
