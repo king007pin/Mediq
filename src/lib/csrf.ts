@@ -18,7 +18,6 @@
  * a cross-site attacker cannot read the cookie value to construct a matching
  * header (SameSite=Lax blocks the cross-site cookie disclosure).
  */
-import { randomBytes, timingSafeEqual } from "crypto";
 import type { NextRequest } from "next/server";
 
 export const CSRF_COOKIE = "mediq-csrf";
@@ -44,11 +43,18 @@ function isExempt(pathname: string): boolean {
   );
 }
 
+// Constant-time comparison — Web Crypto has no timingSafeEqual equivalent, so
+// this loops over every byte regardless of an early mismatch (no short-circuit
+// return) to avoid leaking length-of-match via timing.
 function safeEqualString(a: string, b: string): boolean {
-  const ab = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
+  const ab = new TextEncoder().encode(a);
+  const bb = new TextEncoder().encode(b);
   if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) {
+    diff |= ab[i] ^ bb[i];
+  }
+  return diff === 0;
 }
 
 function readCsrfCookie(req: NextRequest): string | null {
@@ -56,8 +62,15 @@ function readCsrfCookie(req: NextRequest): string | null {
   return v && v.length > 0 ? v : null;
 }
 
+function toBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export function mintCsrfToken(): string {
-  return randomBytes(CSRF_TOKEN_BYTES).toString("base64url");
+  const bytes = crypto.getRandomValues(new Uint8Array(CSRF_TOKEN_BYTES));
+  return toBase64Url(bytes);
 }
 
 export function checkCsrf(req: NextRequest): CsrfVerdict {
