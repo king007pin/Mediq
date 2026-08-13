@@ -371,10 +371,10 @@ function StatpearlsCrawl() {
   }, []);
 
   // W50 — fetch-on-mount; setState is network-driven (see insights-panel.tsx).
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadStatus(controller.signal);
     return () => {
       controller.abort();
@@ -588,10 +588,10 @@ function GenericCrawlCard({ crawler }: { crawler: CrawlerMeta }) {
   }, [apiBase]);
 
   // W50 — fetch-on-mount; setState is network-driven (see insights-panel.tsx).
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadStatus(controller.signal);
     return () => {
       controller.abort();
@@ -864,10 +864,10 @@ export default function FeedPanel() {
   }, []);
 
   // W50 — fetch-on-mount; setState is network-driven (see insights-panel.tsx).
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadFeeds(controller.signal);
     return () => {
       controller.abort();

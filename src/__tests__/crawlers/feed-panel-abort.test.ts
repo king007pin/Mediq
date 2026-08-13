@@ -21,10 +21,15 @@ describe("FeedPanel AbortController & Signal Cleanup", () => {
   });
 
   it("passes AbortSignal to fetch calls on mount and aborts signal when unmounted", async () => {
-    let capturedSignal: AbortSignal | null | undefined = null;
+    // Object wrapper, not a reassigned `let` — TS over-narrows a `let x: T | null
+    // | undefined = null` scalar to the literal `null` and keeps that narrowing
+    // across the `render()` call below (it can't see the mock closure runs inside
+    // it), so a later `x?.prop` type-checks as `never`. A property on a `const`
+    // object sidesteps that narrowing.
+    const captured: { signal: AbortSignal | null | undefined } = { signal: null };
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes("/api/admin/feeds")) {
-        capturedSignal = init?.signal;
+        captured.signal = init?.signal;
         return new Promise(() => {}); // never resolves to keep request pending
       }
       return Promise.resolve(new Response(JSON.stringify({ feeds: [] })));
@@ -34,12 +39,12 @@ describe("FeedPanel AbortController & Signal Cleanup", () => {
     const { unmount } = render(React.createElement(FeedPanel));
 
     expect(fetchMock).toHaveBeenCalled();
-    expect(capturedSignal).toBeDefined();
-    expect(capturedSignal?.aborted).toBe(false);
+    expect(captured.signal).toBeDefined();
+    expect(captured.signal?.aborted).toBe(false);
 
     unmount();
 
-    expect(capturedSignal?.aborted).toBe(true);
+    expect(captured.signal?.aborted).toBe(true);
   });
 
   it("prevents state mutations when fetch resolves after component unmount", async () => {
@@ -48,10 +53,10 @@ describe("FeedPanel AbortController & Signal Cleanup", () => {
       resolveFeeds = resolve;
     });
 
-    let capturedSignal: AbortSignal | null | undefined = null;
+    const captured: { signal: AbortSignal | null | undefined } = { signal: null };
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes("/api/admin/feeds")) {
-        capturedSignal = init?.signal;
+        captured.signal = init?.signal;
         return feedsPromise;
       }
       return Promise.resolve(new Response(JSON.stringify({ feeds: [] })));
@@ -60,11 +65,11 @@ describe("FeedPanel AbortController & Signal Cleanup", () => {
 
     const { unmount } = render(React.createElement(FeedPanel));
 
-    expect(capturedSignal).toBeDefined();
-    expect(capturedSignal?.aborted).toBe(false);
+    expect(captured.signal).toBeDefined();
+    expect(captured.signal?.aborted).toBe(false);
 
     unmount();
-    expect(capturedSignal?.aborted).toBe(true);
+    expect(captured.signal?.aborted).toBe(true);
 
     // Resolve fetch after unmount
     resolveFeeds!(
