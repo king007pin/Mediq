@@ -18,17 +18,24 @@ function nvidiaFetchInit(init: RequestInit): NvidiaFetchInit {
 export const NVIDIA_EMBED_MODEL = "nvidia/nv-embedqa-e5-v5";
 export const NVIDIA_EMBED_DIMS = 1024;
 
+// Verified against this account's actual provisioned models on 2026-08-13 —
+// several previous entries were either globally retired by NVIDIA (410 Gone,
+// explicit end-of-life dates) or never enabled for this account (404 "Not
+// found for account", regardless of being listed in the general /v1/models
+// catalog). Every ID below was confirmed with a real successful chat
+// completion against this account's key before being added. See
+// [[04_Security/Security Audit Findings]] / Active Session Context 2026-08-13
+// in the Obsidian vault for the full investigation.
 export const NVIDIA_SWARM_MODELS = [
   "meta/llama-3.3-70b-instruct",                 // primary / synthesis anchor — IM attending, 70B
   "meta/llama-3.1-8b-instruct",                  // renal care / fast, 8B
-  "mistralai/ministral-14b-instruct-2512",        // system entryway / fast, 14B
-  "nv-mistralai/mistral-nemo-12b-instruct",       // orthopaedics / rheumatology, 12B
-  "nvidia/nvidia-nemotron-nano-9b-v2",            // clinical pathology / metabolic, 9B
-  "nvidia/llama-3.1-nemotron-nano-8b-v1",         // diagnostic radiology / fast, 8B
-  "google/gemma-3-12b-it",                        // gastrosciences / gastroenterology, 12B
-  "microsoft/phi-4-mini-instruct",                // emergency specialist / fast, mini
-  "qwen/qwen3-next-80b-a3b-instruct",             // neurosciences / neurological reasoning, 80B MoE
-  "nvidia/nemotron-nano-3-30b-a3b"                // cardiac care / cardiovascular, 30B MoE
+  "meta/llama-3.1-70b-instruct",                 // system entryway, 70B
+  "nvidia/nemotron-3-super-120b-a12b",           // orthopaedics / rheumatology, 120B MoE
+  "nvidia/nvidia-nemotron-nano-9b-v2",           // clinical pathology / metabolic, 9B
+  "nvidia/llama-3.1-nemotron-nano-8b-v1",        // diagnostic radiology / fast, 8B
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5",    // gastrosciences / gastroenterology, 49B
+  "nvidia/nemotron-mini-4b-instruct",            // emergency specialist / fast, mini
+  "nvidia/nemotron-3-nano-30b-a3b"               // cardiac care / cardiovascular, 30B MoE — was "nemotron-nano-3-30b-a3b" (404), the ID is "nemotron-3-nano" (order swapped)
 ] as const;
 
 export type NvidiaModel = (typeof NVIDIA_SWARM_MODELS)[number];
@@ -162,6 +169,13 @@ async function nvidiaFetch(path: string, body: unknown, timeoutMs = 32_000, task
       }
 
       markKeyUnhealthy(apiKey, res.status);
+      // 404/410 usually means the model itself was retired or renamed on NVIDIA's
+      // side (not a key problem) -- log the body so that shows up immediately
+      // instead of silently degrading through the whole fallback cascade.
+      if (res.status === 404 || res.status === 410) {
+        const bodyText = await res.clone().text().catch(() => "");
+        console.warn(`[NVIDIA] Model unavailable (${res.status}) on ${path}, model=${(body as Record<string, unknown>)?.model}: ${bodyText.slice(0, 300)}`);
+      }
 
       const isTransient = (res.status >= 500 && res.status < 600) || res.status === 429;
       if (isTransient && attempt < 3) {
@@ -252,26 +266,29 @@ const MODEL_CONFIGS: Record<string, { maxTokens: number; temperature: number }> 
 };
 
 export function mapUnstableModel(model: string): string {
-  // Map obsolete, experimental, or custom models to active, high-performance SOTA models on build.nvidia.com
+  // Map obsolete, experimental, or custom models to active, high-performance SOTA models on build.nvidia.com.
+  // Targets verified alive for this account 2026-08-13 (see NVIDIA_SWARM_MODELS comment above) —
+  // several previous targets here were themselves retired/unprovisioned and had to be swapped.
   const mappings: Record<string, string> = {
-    // Heavyweight / dead models spread across DISTINCT fast endpoints so a 10-agent
-    // swarm hits ~10 backends instead of collapsing onto meta/llama-3.1-70b (which
-    // caused the per-endpoint 429s: "first 3 agents load, then the rest all fail").
-    "nvidia/nemotron-3-super-120b-a12b":       "google/gemma-3-12b-it",
+    // nvidia/nemotron-3-super-120b-a12b is now confirmed alive and used directly in
+    // NVIDIA_SWARM_MODELS, so it's no longer a redirect source.
     "nvidia/llama-3.1-nemotron-70b-instruct":  "nvidia/nvidia-nemotron-nano-9b-v2",
-    "mistralai/mixtral-8x22b-instruct-v0.1":   "nv-mistralai/mistral-nemo-12b-instruct", // source ID is dead in the live catalog
-    // qwen3-next-80b-a3b runs native (A3B MoE → fast) — no mapping
-    
-    // Medium-weight 49B models mapped to fast stable 14B
-    "nvidia/llama-3.3-nemotron-super-49b-v1":  "mistralai/ministral-14b-instruct-2512",
-    
-    // Mistral 14B actually works natively, so we remove its mapping to allow native execution!
-    
+    "mistralai/mixtral-8x22b-instruct-v0.1":   "meta/llama-3.1-70b-instruct",
+
+    // v1 superseded by v1.5 (v1.5 confirmed alive, used directly in NVIDIA_SWARM_MODELS)
+    "nvidia/llama-3.3-nemotron-super-49b-v1":  "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+    "mistralai/ministral-14b-instruct-2512":   "nvidia/nemotron-mini-4b-instruct",
+    "nv-mistralai/mistral-nemo-12b-instruct":  "nvidia/nemotron-mini-4b-instruct",
+    "google/gemma-3-12b-it":                   "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+    "qwen/qwen3-next-80b-a3b-instruct":        "meta/llama-3.1-70b-instruct",
+    "nvidia/nemotron-nano-3-30b-a3b":          "nvidia/nemotron-3-nano-30b-a3b", // word order fix
+
     // Lightweight / VL / experimental models mapped to DISTINCT fast text endpoints
     "nvidia/nemotron-nano-12b-v2-vl":          "nvidia/llama-3.1-nemotron-nano-8b-v1",
-    "meta/llama-4-maverick-17b-128e-instruct": "microsoft/phi-4-mini-instruct",
+    "meta/llama-4-maverick-17b-128e-instruct": "nvidia/nemotron-mini-4b-instruct",
+    "microsoft/phi-4-mini-instruct":           "nvidia/nemotron-mini-4b-instruct",
     "microsoft/phi-3-mini-128k-instruct":      "meta/llama-3.1-8b-instruct",
-    
+
     // Primary/Oncology stays on high-quality meta/llama-3.3-70b-instruct
     "openai/gpt-oss-120b":                     "meta/llama-3.3-70b-instruct",
   };

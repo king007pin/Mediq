@@ -243,17 +243,17 @@ export function getCognitiveStrategyForSpecialty(specialty: SpecialtyMeta, model
   };
 }
 
+// Model IDs verified alive for this account 2026-08-13 — see NVIDIA_SWARM_MODELS in nvidia.ts.
 export const MODEL_SPECIALTY_MAP: Record<string, string> = {
   "meta/llama-3.3-70b-instruct":                 "cancer_care",
   "meta/llama-3.1-8b-instruct":                  "renal_care",
-  "mistralai/ministral-14b-instruct-2512":        "system_entryway",
-  "nv-mistralai/mistral-nemo-12b-instruct":       "orthopaedics",
+  "meta/llama-3.1-70b-instruct":                 "system_entryway",
+  "nvidia/nemotron-3-super-120b-a12b":           "orthopaedics",
   "nvidia/nvidia-nemotron-nano-9b-v2":            "clinical_pathology",
   "nvidia/llama-3.1-nemotron-nano-8b-v1":         "diagnostic_radiology",
-  "google/gemma-3-12b-it":                        "gastrosciences",
-  "microsoft/phi-4-mini-instruct":                "emergency",
-  "qwen/qwen3-next-80b-a3b-instruct":             "neurosciences",
-  "nvidia/nemotron-nano-3-30b-a3b":               "cardiac_care",
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5":    "gastrosciences",
+  "nvidia/nemotron-mini-4b-instruct":            "emergency",
+  "nvidia/nemotron-3-nano-30b-a3b":               "cardiac_care",
 };
 
 export function getSpecialtyForModel(modelId: string, fallbackIndex: number): SpecialtyMeta {
@@ -307,27 +307,27 @@ export function selectSpecialtiesForQuery(question: string, models: string[]): S
 }
 
 export const SPECIALTY_MODEL_PREFERENCE: Record<string, string[]> = {
-  system_entryway: ["mistralai/ministral-14b-instruct-2512", "nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.3-70b-instruct"],
-  cardiac_care: ["nvidia/nemotron-nano-3-30b-a3b", "meta/llama-3.3-70b-instruct", "microsoft/phi-4-mini-instruct"],
+  system_entryway: ["nvidia/nemotron-mini-4b-instruct", "nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.3-70b-instruct"],
+  cardiac_care: ["nvidia/nemotron-3-nano-30b-a3b", "meta/llama-3.3-70b-instruct", "nvidia/nemotron-mini-4b-instruct"],
   cancer_care: ["meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/nvidia-nemotron-nano-9b-v2"],
-  neurosciences: ["qwen/qwen3-next-80b-a3b-instruct", "nv-mistralai/mistral-nemo-12b-instruct", "meta/llama-3.3-70b-instruct"],
-  gastrosciences: ["google/gemma-3-12b-it", "meta/llama-3.3-70b-instruct", "qwen/qwen3-next-80b-a3b-instruct"],
-  orthopaedics: ["nv-mistralai/mistral-nemo-12b-instruct", "meta/llama-3.3-70b-instruct", "nvidia/nvidia-nemotron-nano-9b-v2"],
-  renal_care: ["meta/llama-3.1-8b-instruct", "meta/llama-3.3-70b-instruct", "nvidia/nemotron-nano-3-30b-a3b"],
-  liver_transplant: ["meta/llama-3.3-70b-instruct", "google/gemma-3-12b-it", "meta/llama-3.1-8b-instruct"],
+  neurosciences: ["meta/llama-3.1-70b-instruct", "nvidia/nemotron-3-super-120b-a12b", "meta/llama-3.3-70b-instruct"],
+  gastrosciences: ["nvidia/llama-3.3-nemotron-super-49b-v1.5", "meta/llama-3.3-70b-instruct", "meta/llama-3.1-70b-instruct"],
+  orthopaedics: ["nvidia/nemotron-3-super-120b-a12b", "meta/llama-3.3-70b-instruct", "nvidia/nvidia-nemotron-nano-9b-v2"],
+  renal_care: ["meta/llama-3.1-8b-instruct", "meta/llama-3.3-70b-instruct", "nvidia/nemotron-3-nano-30b-a3b"],
+  liver_transplant: ["meta/llama-3.3-70b-instruct", "nvidia/llama-3.3-nemotron-super-49b-v1.5", "meta/llama-3.1-8b-instruct"],
   bone_marrow_transplant: ["nvidia/nvidia-nemotron-nano-9b-v2", "meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct"],
-  lung_transplant: ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-nano-3-30b-a3b", "google/gemma-3-12b-it"],
-  chest_surgery: ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-nano-3-30b-a3b", "microsoft/phi-4-mini-instruct"],
+  lung_transplant: ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-3-nano-30b-a3b", "nvidia/llama-3.3-nemotron-super-49b-v1.5"],
+  chest_surgery: ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-3-nano-30b-a3b", "nvidia/nemotron-mini-4b-instruct"],
   gynae_oncology: ["meta/llama-3.3-70b-instruct", "nvidia/nvidia-nemotron-nano-9b-v2", "meta/llama-3.1-8b-instruct"],
-  paediatric_care: ["nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.3-70b-instruct", "google/gemma-3-12b-it"],
+  paediatric_care: ["nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.3-70b-instruct", "nvidia/llama-3.3-nemotron-super-49b-v1.5"],
   obstetrics_gynaecology: ["meta/llama-3.3-70b-instruct", "nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.1-8b-instruct"],
-  emergency: ["microsoft/phi-4-mini-instruct", "nvidia/nemotron-nano-3-30b-a3b", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
-  ent: ["mistralai/ministral-14b-instruct-2512", "meta/llama-3.3-70b-instruct", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
-  plastic_surgery: ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-nano-3-30b-a3b", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
+  emergency: ["nvidia/nemotron-mini-4b-instruct", "nvidia/nemotron-3-nano-30b-a3b", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
+  ent: ["nvidia/nemotron-mini-4b-instruct", "meta/llama-3.3-70b-instruct", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
+  plastic_surgery: ["meta/llama-3.3-70b-instruct", "nvidia/nemotron-3-nano-30b-a3b", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
   diagnostic_radiology: ["nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.3-70b-instruct", "nvidia/nvidia-nemotron-nano-9b-v2"],
   clinical_pathology: ["nvidia/nvidia-nemotron-nano-9b-v2", "meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct"],
-  pharmacology_safety: ["google/gemma-3-12b-it", "meta/llama-3.3-70b-instruct", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
-  psychiatry: ["nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.3-70b-instruct", "qwen/qwen3-next-80b-a3b-instruct"],
+  pharmacology_safety: ["nvidia/llama-3.3-nemotron-super-49b-v1.5", "meta/llama-3.3-70b-instruct", "nvidia/llama-3.1-nemotron-nano-8b-v1"],
+  psychiatry: ["nvidia/llama-3.1-nemotron-nano-8b-v1", "meta/llama-3.3-70b-instruct", "meta/llama-3.1-70b-instruct"],
 };
 
 export function allocateModelsToSpecialties(selectedSpecialtyIds: string[]): string[] {

@@ -149,7 +149,12 @@ JSON SCHEMA:
   "specialties": ["<specialty_id_1>", "<specialty_id_2>", ... (length must match swarmSize exactly)]
 }`;
 
-  const routerModel = "meta/llama-3.3-70b-instruct";
+  // Router doesn't need the flagship -- just fast, reliable structured JSON.
+  // meta/llama-3.3-70b-instruct is confirmed present in the catalog (not
+  // retired) but was unreliable in testing 2026-08-13 (consistently failed
+  // to complete, unlike every other roster model); llama-3.1-70b-instruct
+  // was confirmed reliable. See Active Session Context in the vault.
+  const routerModel = "meta/llama-3.1-70b-instruct";
   const rawResponse = await nvidiaChat(routerModel, ROUTER_SYSTEM_PROMPT, userPrompt, 0.1, 2048, "triage");
   const parsed = cleanAndParseJSON(rawResponse);
 

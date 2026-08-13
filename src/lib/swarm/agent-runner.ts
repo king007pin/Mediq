@@ -6,11 +6,12 @@ import { callProvider, type ChatMessage } from "../providerRegistry";
 import { type BYOKConfig, mapModelForProvider } from "../byok-resolver";
 import { logger } from "../logger";
 
+// Verified alive for this account 2026-08-13 — see NVIDIA_SWARM_MODELS in nvidia.ts.
 const NVIDIA_SWARM_MODELS_FAST = [
   "meta/llama-3.1-8b-instruct",
-  "mistralai/ministral-14b-instruct-2512",
+  "nvidia/nemotron-mini-4b-instruct",
   "nvidia/nvidia-nemotron-nano-9b-v2",
-  "google/gemma-3-12b-it",
+  "nvidia/llama-3.1-nemotron-nano-8b-v1",
 ] as const;
 
 function truncate(text: string, len: number) {
