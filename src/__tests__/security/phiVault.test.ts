@@ -1,11 +1,18 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { encryptPhi, decryptPhi, isEncrypted } from "../../lib/phi-vault";
+import { encryptPhi, decryptPhi, isEncrypted, PhiKeyMismatchError } from "../../lib/phi-vault";
+
+// 32-byte base64-encoded test keys — distinct from each other and from
+// APP_SECRET_KEY below.
+const KEY_A = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=";
+const KEY_B = "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=";
+const KEY_C = "Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2M=";
 
 describe("PHI Envelope Encryption Vault", () => {
   beforeEach(() => {
     // Reset standard testing KEK (32-byte base64-encoded key)
-    process.env.APP_PHI_KEK = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=";
+    process.env.APP_PHI_KEK = KEY_A;
     process.env.APP_SECRET_KEY = "another-secret-key-value-distinct-from-kek";
+    delete process.env.APP_PHI_KEK_PREVIOUS;
   });
 
   it("performs correct roundtrip encryption/decryption for simple text", () => {
@@ -83,6 +90,40 @@ describe("PHI Envelope Encryption Vault", () => {
     // 16-byte key instead of 32-byte key
     process.env.APP_PHI_KEK = "c2hvcnQta2V5LXZhbHVl";
     expect(() => encryptPhi("test")).toThrow("must decode to exactly 32 bytes");
+  });
+
+  it("decrypts with a retired key when the current key doesn't match (rotation)", () => {
+    process.env.APP_PHI_KEK = KEY_A;
+    const encrypted = encryptPhi("rotated secret");
+
+    // Simulate rotation: A is now retired, B is current.
+    process.env.APP_PHI_KEK = KEY_B;
+    process.env.APP_PHI_KEK_PREVIOUS = KEY_A;
+
+    expect(decryptPhi(encrypted)).toBe("rotated secret");
+  });
+
+  it("throws PhiKeyMismatchError when neither current nor retired keys match", () => {
+    process.env.APP_PHI_KEK = KEY_A;
+    const encrypted = encryptPhi("orphaned secret");
+
+    process.env.APP_PHI_KEK = KEY_B;
+    process.env.APP_PHI_KEK_PREVIOUS = KEY_C;
+
+    expect(() => decryptPhi(encrypted)).toThrow(PhiKeyMismatchError);
+  });
+
+  it("still throws on tampered ciphertext even with a retired key configured", () => {
+    process.env.APP_PHI_KEK = KEY_A;
+    const encrypted = encryptPhi("confidential");
+    const parts = encrypted.split(".");
+    parts[6] = parts[6].slice(0, -3) + "xyz";
+    const tampered = parts.join(".");
+
+    process.env.APP_PHI_KEK_PREVIOUS = KEY_B;
+
+    expect(() => decryptPhi(tampered)).toThrow();
+    expect(() => decryptPhi(tampered)).not.toThrow(PhiKeyMismatchError);
   });
 
   it("accurately detects encrypted format via isEncrypted", () => {

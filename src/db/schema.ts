@@ -2,7 +2,8 @@
 // `npx drizzle-kit push` without bootstrapping Drizzle config first.
 import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, real, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { encryptPhi, decryptPhi, isEncrypted } from "../lib/phi-vault";
+import { encryptPhi, decryptPhi, isEncrypted, PhiKeyMismatchError } from "../lib/phi-vault";
+import { logger } from "../lib/logger";
 
 // pgvector custom type — stores as binary vector(N) instead of jsonb, ~3x space savings
 function vector(dimensions: number) {
@@ -28,7 +29,16 @@ const encryptedText = customType<{ data: string; driverData: string }>({
     return encryptPhi(v);
   },
   fromDriver(v: string): string {
-    return isEncrypted(v) ? decryptPhi(v) : v;
+    if (!isEncrypted(v)) return v;
+    try {
+      return decryptPhi(v);
+    } catch (err) {
+      if (err instanceof PhiKeyMismatchError) {
+        logger.warn("PHI field unreadable under current/retired APP_PHI_KEK — returning placeholder");
+        return "[unreadable — PHI key mismatch]";
+      }
+      throw err;
+    }
   },
 });
 
