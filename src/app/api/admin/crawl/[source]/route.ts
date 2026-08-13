@@ -167,7 +167,15 @@ export async function POST(
   let lastErrMsg: string | null = null;
 
   for (const url of batch) {
-    const article = await crawler.fetchArticle(url);
+    let article: Awaited<ReturnType<typeof crawler.fetchArticle>>;
+    try {
+      article = await crawler.fetchArticle(url);
+    } catch (err) {
+      errors++;
+      lastErrMsg = (err as Error).message ?? String(err);
+      console.error(`[crawl/${source}] fetchArticle failed for ${url}: ${lastErrMsg}`);
+      continue;
+    }
     if (!article || article.content.length < 100) {
       skipped++;
       continue;
