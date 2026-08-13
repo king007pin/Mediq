@@ -770,8 +770,8 @@ export async function runSynthesisAgent(
         return chunks.join("");
       }
       return await nvidiaChat(model, system, user, 0.15, undefined, "triage");
-    } catch {
-      // fall through to local fallback
+    } catch (err) {
+      logger.warn(`[Synthesis] NVIDIA call failed, falling back to local template: ${(err as Error).message.slice(0, 200)}`);
     }
   }
 
@@ -783,7 +783,7 @@ export function buildLocalFallback(question: string, matches: MatchMeta[], agent
   const evidence = slice
     .map((m, i) => `[S${i + 1 + agentIndex}] ${truncate(m.chunk, 200)} ${formatCitation(m)}`)
     .join("\n");
-  return `Assessment for: ${question}\n\nEvidence reviewed:\n${evidence}\n\n[Configure NVIDIA_API_KEY for real AI responses]`;
+  return `Assessment for: ${question}\n\nEvidence reviewed:\n${evidence}\n\n[AI specialist analysis unavailable — showing evidence review only]`;
 }
 
 export function buildDebateFallback(
@@ -792,7 +792,7 @@ export function buildDebateFallback(
   peers: Array<{ model: string; message: string }>,
   _agentIndex: number,
 ): string {
-  return `Refined Assessment for: ${question}\n\nAGREEMENTS: Differentials align on the primary presentation.\n\nREFINEMENTS: Colleagues raised ${peers.length} perspective(s). Key additions noted.\n\nMy initial position stands: ${truncate(myAssessment, 300)}\n\n[Configure NVIDIA_API_KEY for real debate responses]`;
+  return `Refined Assessment for: ${question}\n\nAGREEMENTS: Differentials align on the primary presentation.\n\nREFINEMENTS: Colleagues raised ${peers.length} perspective(s). Key additions noted.\n\nMy initial position stands: ${truncate(myAssessment, 300)}\n\n[AI debate refinement unavailable — showing initial assessment only]`;
 }
 
 export function buildLocalSynthesis(question: string, agents: AgentReply[], matches: MatchMeta[]): string {
@@ -823,6 +823,7 @@ ${agentSummaries}
 
 CAVEATS AND LIMITATIONS
 ----------------------------------------
--  Configure NVIDIA_API_KEY for full AI-synthesized reports
--  Evidence limited to provided snippets only`;
+-  This is an abbreviated report — the AI synthesis service was unavailable when this report was generated, so it shows individual specialist summaries and evidence only, without a unified consensus assessment.
+-  Evidence limited to provided snippets only
+-  Please retry the query, or consult a clinician directly if this report is needed urgently.`;
 }
