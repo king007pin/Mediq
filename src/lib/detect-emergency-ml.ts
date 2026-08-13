@@ -1,5 +1,6 @@
 import { PROVIDERS, callProvider } from "./providerRegistry";
 import { detectEmergency } from "./detect-emergency";
+import { getNvidiaApiKey } from "./nvidia";
 
 export type EmergencyMLResult = {
   isEmergency: boolean;
@@ -33,7 +34,11 @@ export async function detectEmergencyML(
   if (!apiKey) {
     if (process.env.NVIDIA_API_KEY) {
       providerId = providerId || "nvidia";
-      apiKey = process.env.NVIDIA_API_KEY;
+      // NVIDIA_API_KEY is a comma-separated pool (see getNvidiaApiKey in
+      // nvidia.ts) -- must pick one real key, not send the raw joined
+      // string as a single Bearer token (that 403s with "Authorization
+      // failed" since it's not a valid key).
+      apiKey = getNvidiaApiKey("default");
     } else if (process.env.OPENAI_API_KEY) {
       providerId = providerId || "openai";
       apiKey = process.env.OPENAI_API_KEY;
