@@ -131,6 +131,8 @@ export async function POST(req: NextRequest) {
   const contextWithMemory = context + pastCasesContext;
 
   const encoder = new TextEncoder();
+  const streamAbortController = new AbortController();
+  let ping: ReturnType<typeof setInterval> | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -141,7 +143,6 @@ export async function POST(req: NextRequest) {
       // Send 2KB of comment padding to force CDN/Proxy buffers to flush and establish the SSE stream immediately
       controller.enqueue(encoder.encode(":" + " ".repeat(2048) + "\n\n"));
 
-      let ping: ReturnType<typeof setInterval> | null = null;
       ping = setInterval(() => {
         try { controller.enqueue(encoder.encode(": ping\n\n")); } catch { /* stream closed */ }
       }, 5000);
@@ -169,6 +170,7 @@ export async function POST(req: NextRequest) {
           queryEmbedding: qEmbedding,
           precomputedRouting,
           providerOverride: byokConfig ?? undefined,
+          abortSignal: streamAbortController.signal,
           onAgentDone: (agent) => send({ type: "agent", ...agent }),
           onSwarmConfig: (config) => send({ type: "swarm_config", ...config }),
           onDebateStart: () =>
@@ -238,9 +240,19 @@ export async function POST(req: NextRequest) {
         logger.error("[query] swarm run failed", err);
         send({ type: "error", message: "Query failed. Please try again." });
       } finally {
-        if (ping) clearInterval(ping);
+        if (ping) {
+          clearInterval(ping);
+          ping = null;
+        }
         controller.close();
       }
+    },
+    cancel(reason) {
+      if (ping) {
+        clearInterval(ping);
+        ping = null;
+      }
+      streamAbortController.abort(reason);
     },
   });
 

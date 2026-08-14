@@ -331,8 +331,8 @@ export async function searchByVector(queryEmbedding: number[], topK = 10): Promi
 export async function rewriteQueryForRetrieval(question: string): Promise<string[]> {
   if (!hasNvidiaKey()) return [question];
   try {
-    const result = await nvidiaChat(
-      "microsoft/phi-3-mini-128k-instruct",
+    const fetchPromise = nvidiaChat(
+      "meta/llama-3.1-8b-instruct",
       "You are a clinical search assistant. Your only job is to rewrite clinical questions into search queries.",
       `Rewrite this clinical question into exactly 3 distinct search queries optimised for medical literature retrieval.
 Each query should target a different aspect: (1) primary diagnosis, (2) key symptoms and investigations, (3) treatment and management.
@@ -341,6 +341,10 @@ Return ONLY the 3 queries, one per line, no numbering, no explanation.
 
 Clinical question: ${question}`,
     );
+    const timeoutPromise = new Promise<string>((_, reject) =>
+      setTimeout(() => reject(new Error("rewriteQuery timeout")), 3500)
+    );
+    const result = await Promise.race([fetchPromise, timeoutPromise]);
     const queries = result.split("\n").map((l) => l.trim()).filter((l) => l.length > 5).slice(0, 3);
     return queries.length >= 2 ? [question, ...queries] : [question];
   } catch {

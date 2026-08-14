@@ -6,13 +6,17 @@ import { chunkText, embedBatch } from "./rag";
 
 export type IngestKind = "pdf" | "youtube" | "website" | "text" | "rss";
 
+export function sanitizeTextForPostgres(text: string): string {
+  return text.replace(/\u0000/g, "");
+}
+
 function sha256(s: string) {
   return createHash("sha256").update(s).digest("hex");
 }
 
 export async function persistSource({
   kind,
-  rawText,
+  rawText: rawTextInput,
   url,
   title,
   description,
@@ -23,6 +27,8 @@ export async function persistSource({
   title?: string | null;
   description?: string | null;
 }): Promise<{ sourceId: number; chunkCount: number; duplicate?: boolean }> {
+  const rawText = sanitizeTextForPostgres(rawTextInput);
+
   const urlHash = url ? sha256(url) : undefined;
   const contentHash = sha256(rawText);
 
@@ -54,14 +60,19 @@ export async function persistSource({
       })
       .returning();
 
-    await tx.insert(embeddings).values(
-      chunks.map((chunk, idx) => ({
-        sourceId: created.id,
-        chunk,
-        position: idx,
-        embedding: vectors[idx],
-      })),
-    );
+    const BATCH_SIZE = 50;
+    const allEmbeddings = chunks.map((chunk, idx) => ({
+      sourceId: created.id,
+      chunk,
+      position: idx,
+      embedding: vectors[idx],
+    }));
+
+    for (let i = 0; i < allEmbeddings.length; i += BATCH_SIZE) {
+      const batch = allEmbeddings.slice(i, i + BATCH_SIZE);
+      await tx.insert(embeddings).values(batch);
+    }
+
     return created;
   });
 

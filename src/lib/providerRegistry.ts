@@ -163,11 +163,16 @@ export async function callProvider(
   model: string,
   messages: ChatMessage[],
   timeoutMs = 30_000,
+  abortSignal?: AbortSignal,
 ): Promise<string> {
   const targetModel = provider.id === "nvidia" ? mapUnstableModel(model) : model;
   const baseUrl = provider.baseUrl;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  if (abortSignal) {
+    if (abortSignal.aborted) ctrl.abort();
+    else abortSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
+  }
 
   try {
     if (provider.format === "openai") {

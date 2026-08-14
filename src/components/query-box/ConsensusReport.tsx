@@ -154,6 +154,23 @@ export function ReportView({ text }: { text: string }) {
     // Dash separator → skip (visual handled by header spacing)
     if (isDashLine(line)) { i++; continue; }
 
+    // Blockquote (e.g. > **Patient-Friendly Summary**: ...)
+    if (line.trim().startsWith(">")) {
+      const quoteText = line.trim().replace(/^>\s*/, "");
+      elements.push(
+        <div key={key++} className="my-3.5 rounded-xl border-l-4 p-4 text-[15px] leading-relaxed shadow-sm"
+          style={{
+            borderColor: "var(--accent)",
+            backgroundColor: "color-mix(in srgb, var(--accent) 10%, var(--card))",
+            color: "var(--text)",
+          }}>
+          {renderFormattedText(quoteText)}
+        </div>
+      );
+      i++;
+      continue;
+    }
+
     const headerInfo = parseHeader(line);
     if (headerInfo.isHeader) {
       let title = headerInfo.cleanText.trim();

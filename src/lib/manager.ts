@@ -103,11 +103,12 @@ export async function runManagedSwarm(params: {
     round2Agents?: any[];
   }) => Promise<number | null>;
   providerOverride?: BYOKConfig;
+  abortSignal?: AbortSignal;
 }): Promise<ManagerResult> {
   const {
     question, context, matches, model, patientContext, labText,
     queryEmbedding = [], onAgentDone, onSwarmConfig, onDebateStart, onSynthesisStart,
-    onSynthesisToken, onManagerStatus, logSessionFn,
+    onSynthesisToken, onManagerStatus, logSessionFn, abortSignal,
   } = params;
 
   const t0 = Date.now();
@@ -155,6 +156,7 @@ export async function runManagedSwarm(params: {
     onSynthesisStart,
     onSynthesisToken,
     providerOverride: params.providerOverride,
+    abortSignal,
   });
 
   const totalLatencyMs = Date.now() - t0;

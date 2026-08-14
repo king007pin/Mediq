@@ -132,6 +132,8 @@ ${context}
 Generate the updated clinical consensus report now:`;
 
   const encoder = new TextEncoder();
+  const streamAbortController = new AbortController();
+  let ping: ReturnType<typeof setInterval> | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -142,7 +144,6 @@ Generate the updated clinical consensus report now:`;
       // 2KB of padding to flush CDN/Proxy buffers
       controller.enqueue(encoder.encode(":" + " ".repeat(2048) + "\n\n"));
 
-      let ping: ReturnType<typeof setInterval> | null = null;
       ping = setInterval(() => {
         try { controller.enqueue(encoder.encode(": ping\n\n")); } catch { /* closed */ }
       }, 5000);
@@ -165,14 +166,14 @@ Generate the updated clinical consensus report now:`;
             { role: "system" as const, content: systemPrompt },
             { role: "user" as const, content: userPrompt },
           ];
-          const result = await callProvider(effectiveProvider, byokConfig.apiKey, synthesisModel, messages, 60_000);
+          const result = await callProvider(effectiveProvider, byokConfig.apiKey, synthesisModel, messages, 60_000, streamAbortController.signal);
           answer = result;
           const words = result.split(/(?<=\s)/);
           for (const word of words) {
             send({ type: "synthesis_token", token: word });
           }
         } else if (hasNvidiaKey()) {
-          const chatStream = await nvidiaChatStream(synthesisModel, systemPrompt, userPrompt, 0.15, 3500, "triage");
+          const chatStream = await nvidiaChatStream(synthesisModel, systemPrompt, userPrompt, 0.15, 5120, "triage", streamAbortController.signal);
           const reader = chatStream.getReader();
           const chunks: string[] = [];
           for (;;) {
@@ -226,9 +227,19 @@ Generate the updated clinical consensus report now:`;
         logger.error("[chat] critique re-run failed", err);
         send({ type: "error", message: "Critique re-run failed. Please try again." });
       } finally {
-        if (ping) clearInterval(ping);
+        if (ping) {
+          clearInterval(ping);
+          ping = null;
+        }
         controller.close();
       }
+    },
+    cancel(reason) {
+      if (ping) {
+        clearInterval(ping);
+        ping = null;
+      }
+      streamAbortController.abort(reason);
     },
   });
 

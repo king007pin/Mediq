@@ -5,6 +5,7 @@ import { ThinkingDots } from "./query-box/AgentDebateBubble";
 import { DebateGrid } from "./query-box/DebateGrid";
 import { ConsensusReport } from "./query-box/ConsensusReport";
 import { EvidenceSources } from "./query-box/EvidenceSources";
+import { scrubPhi } from "@/lib/phi-scrubber";
 
 export type AgentReply = { model: string; message: string; reasoning: string; round?: 1 | 2 };
 export type Match = {
@@ -166,6 +167,29 @@ export function sanitizePdfText(str: string): string {
     .replace(/Χ/g, "Chi")
     .replace(/Ψ/g, "Psi")
     .replace(/Ω/g, "Omega")
+    // Medical & Mathematical symbols (prevent 1,000,000x dosage errors)
+    .replace(/≥/g, ">=")
+    .replace(/≤/g, "<=")
+    .replace(/±/g, "+/-")
+    .replace(/μ/g, "mc")
+    .replace(/°/g, " deg")
+    // Box-drawing & flowchart symbols
+    .replace(/│/g, "|")
+    .replace(/║/g, "|")
+    .replace(/▼/g, "v")
+    .replace(/↓/g, "v")
+    .replace(/▲/g, "^")
+    .replace(/↑/g, "^")
+    .replace(/►/g, "->")
+    .replace(/→/g, "->")
+    .replace(/◄/g, "<-")
+    .replace(/←/g, "<-")
+    .replace(/└/g, "`--")
+    .replace(/├/g, "|--")
+    .replace(/─/g, "-")
+    .replace(/┌/g, ",--")
+    .replace(/┐/g, "--.")
+    .replace(/┘/g, "--'")
     // Common Unicode punctuation / formatting
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
@@ -219,8 +243,9 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
     doc.setFont("times", "bold"); doc.setFontSize(13); tc(NAVY);
     doc.text(sanitizePdfText("CLINICAL ASSESSMENT REPORT"), PW / 2, 42, { align: "center" });
     if (query.trim()) {
+      const cleanQuery = scrubPhi(query.trim());
       doc.setFont("times", "italic"); doc.setFontSize(8); tc(MUTED);
-      const qLines = doc.splitTextToSize(sanitizePdfText(`Query: ${query}`), CW) as string[];
+      const qLines = doc.splitTextToSize(sanitizePdfText(`Query: ${cleanQuery}`), CW) as string[];
       doc.text(qLines, PW / 2, 48, { align: "center" });
       // separator and content start track actual query height (each line ≈4mm at 8pt)
       const qEndY = 48 + (qLines.length - 1) * 4;
@@ -293,6 +318,27 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
   while (i < lines.length) {
     const line = lines[i];
     if (!line.trim()) { i++; y += 1.2; continue; }
+
+    if (line.trim().startsWith(">")) {
+      const quoteText = line.trim().replace(/^>\s*/, "").replace(/\*\*/g, "");
+      const wrapped = doc.splitTextToSize(sanitizePdfText(quoteText), CW - 12) as string[];
+      const boxH = Math.max(wrapped.length * 4.8 + 6, 10);
+      checkY(boxH + 2);
+      fc(TEAL_BG);
+      doc.rect(ML, y, CW, boxH, "F");
+      dc(TEAL);
+      doc.setLineWidth(1.2);
+      doc.line(ML, y, ML, y + boxH);
+      doc.setFont("times", "italic");
+      doc.setFontSize(10);
+      tc(NAVY);
+      wrapped.forEach((wl, wi) => {
+        doc.text(sanitizePdfText(wl), ML + 5, y + 4.5 + wi * 4.8);
+      });
+      y += boxH + 3;
+      i++;
+      continue;
+    }
 
     if (line.trim().startsWith("```")) {
       const codeLines: string[] = [];
@@ -414,26 +460,30 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
 
     if (isDash(line)) { i++; continue; }
 
-    if (isAllCapsHeader(line)) {
+    const isHeaderCandidate = (l: string) => {
+      const clean = l.trim();
+      if (clean.startsWith("#")) return true;
+      return isAllCapsHeader(clean);
+    };
+
+    if (isHeaderCandidate(line)) {
       checkY(35); y += 3;
-      doc.setFont("times", "bold"); doc.setFontSize(15); tc(TEAL);
-      let clean = line.trim();
-      if (clean.startsWith("#")) {
-        clean = clean.replace(/^#+\s*/, "").trim();
-      }
+      doc.setFont("times", "bold"); doc.setFontSize(14); tc(TEAL);
+      let clean = line.trim().replace(/^#+\s*/, "").trim();
       if (clean.startsWith("•") || clean.startsWith("–") || clean.startsWith("-")) {
         clean = clean.slice(1).trim();
       }
-      const sClean = sanitizePdfText(clean);
+      const sClean = sanitizePdfText(clean.replace(/\*\*/g, ""));
       doc.text(sClean, ML, y);
       const tw = doc.getTextWidth(sClean);
-      dc(TEAL); doc.setLineWidth(0.4); doc.line(ML, y + 1.1, ML + tw, y + 1.1);
+      dc(TEAL); doc.setLineWidth(0.4); doc.line(ML, y + 1.1, ML + Math.min(tw, CW), y + 1.1);
       y += 6; i++;
       continue;
     }
 
     if (isNumList(line)) {
-      const wrapped = doc.splitTextToSize(sanitizePdfText(line.trim()), CW - 5) as string[];
+      const cleanLine = line.trim().replace(/\*\*/g, "");
+      const wrapped = doc.splitTextToSize(sanitizePdfText(cleanLine), CW - 5) as string[];
       checkY(wrapped.length * 5.2 + 1);
       doc.setFont("times", "normal"); doc.setFontSize(11.5); tc(DARK);
       wrapped.forEach((wl, wi) => { doc.text(sanitizePdfText(wl), ML + (wi > 0 ? 6 : 3), y); y += 5.2; });
@@ -441,7 +491,7 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
     }
 
     if (isBull(line)) {
-      const content = line.trim().replace(/^[-•]\s{1,3}/, "");
+      const content = line.trim().replace(/^[-•]\s{1,3}/, "").replace(/\*\*/g, "");
       const wrapped = doc.splitTextToSize(sanitizePdfText(content), CW - 9) as string[];
       checkY(wrapped.length * 5.2 + 1);
       doc.setFont("times", "normal"); doc.setFontSize(11.5);
@@ -451,7 +501,8 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
       i++; continue;
     }
 
-    const wrapped = doc.splitTextToSize(sanitizePdfText(line), CW) as string[];
+    const cleanLine = line.replace(/\*\*/g, "");
+    const wrapped = doc.splitTextToSize(sanitizePdfText(cleanLine), CW) as string[];
     checkY(wrapped.length * 5.2 + 1);
     doc.setFont("times", "normal"); doc.setFontSize(11.5); tc(DARK);
     wrapped.forEach(wl => { doc.text(sanitizePdfText(wl), ML, y); y += 5.2; });
@@ -763,11 +814,25 @@ export default function QueryBox() {
     await runLabExtraction(updatedFiles);
   }
 
-  function handlePrint() {
-    if (!result || !jsPdfClass) return;
+  async function handlePrint() {
+    if (!result) return;
+    let jsPdf = jsPdfClass;
+    if (!jsPdf) {
+      setGeneratingPdf(true);
+      try {
+        const m = await import("jspdf");
+        jsPdf = m.default;
+        setJsPdfClass(() => jsPdf);
+      } catch (err) {
+        console.error("Failed to load jsPDF:", err);
+        setGeneratingPdf(false);
+        return;
+      }
+    }
+
     setGeneratingPdf(true);
     try {
-      const blob = generateClinicalPDF(result.answer, question, jsPdfClass, logoDataUrl);
+      const blob = generateClinicalPDF(result.answer, question, jsPdf, logoDataUrl);
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       if (win) {
@@ -786,10 +851,24 @@ export default function QueryBox() {
   }
 
   async function handleShare() {
-    if (!result || !jsPdfClass) return;
+    if (!result) return;
+    let jsPdf = jsPdfClass;
+    if (!jsPdf) {
+      setSharingPdf(true);
+      try {
+        const m = await import("jspdf");
+        jsPdf = m.default;
+        setJsPdfClass(() => jsPdf);
+      } catch (err) {
+        console.error("Failed to load jsPDF:", err);
+        setSharingPdf(false);
+        return;
+      }
+    }
+
     setSharingPdf(true);
     try {
-      const blob = generateClinicalPDF(result.answer, question, jsPdfClass, logoDataUrl);
+      const blob = generateClinicalPDF(result.answer, question, jsPdf, logoDataUrl);
       const file = new File([blob], "mediq-clinical-report.pdf", { type: "application/pdf" });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ title: "MEDIQ Clinical Assessment Report", text: "Clinical Assessment Report — MEDIQ AI", files: [file] });

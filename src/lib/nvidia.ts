@@ -273,7 +273,7 @@ export function mapUnstableModel(model: string): string {
     // nvidia/nemotron-3-super-120b-a12b is now confirmed alive and used directly in
     // NVIDIA_SWARM_MODELS, so it's no longer a redirect source.
     "nvidia/llama-3.1-nemotron-70b-instruct":  "nvidia/nvidia-nemotron-nano-9b-v2",
-    "mistralai/mixtral-8x22b-instruct-v0.1":   "meta/llama-3.1-70b-instruct",
+    "mistralai/mixtral-8x22b-instruct-v0.1":   "nv-mistralai/mistral-nemo-12b-instruct",
 
     // v1 superseded by v1.5 (v1.5 confirmed alive, used directly in NVIDIA_SWARM_MODELS)
     "nvidia/llama-3.3-nemotron-super-49b-v1":  "nvidia/llama-3.3-nemotron-super-49b-v1.5",
@@ -454,6 +454,7 @@ export async function nvidiaChatStream(
   temperatureOverride?: number,
   maxTokensOverride?: number,
   task: NvidiaTaskType = "default",
+  abortSignal?: AbortSignal,
 ): Promise<ReadableStream<string>> {
   let targetModel = mapUnstableModel(model);
   const cfg = MODEL_CONFIGS[targetModel] ?? { maxTokens: 4096, temperature: 0.3 };
@@ -467,24 +468,36 @@ export async function nvidiaChatStream(
     const apiKey = getNvidiaApiKey(task);
     if (!apiKey) throw new Error("NVIDIA_API_KEY not configured");
 
-    res = await fetch(`${NVIDIA_BASE}/chat/completions`, nvidiaFetchInit({
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: targetModel,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        max_tokens: maxTokensOverride ?? cfg.maxTokens,
-        temperature: temperatureOverride ?? cfg.temperature,
-        top_p: 0.9,
-        stream: true,
-      }),
-    }) as RequestInit);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    if (abortSignal) {
+      if (abortSignal.aborted) ctrl.abort();
+      else abortSignal.addEventListener("abort", () => ctrl.abort(), { once: true });
+    }
+
+    try {
+      res = await fetch(`${NVIDIA_BASE}/chat/completions`, nvidiaFetchInit({
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          max_tokens: maxTokensOverride ?? cfg.maxTokens,
+          temperature: temperatureOverride ?? cfg.temperature,
+          top_p: 0.9,
+          stream: true,
+        }),
+        signal: ctrl.signal,
+      }) as RequestInit);
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (res.ok) {
       markKeyHealthy(apiKey);

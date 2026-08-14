@@ -295,6 +295,7 @@ export async function runSwarm({
   onSynthesisToken,
   onSwarmConfig,
   providerOverride,
+  abortSignal,
 }: {
   question: string;
   context: string;
@@ -311,6 +312,7 @@ export async function runSwarm({
   onSynthesisToken?: (token: string) => void;
   onSwarmConfig?: (config: { swarmSize: number; hospitalDepartments: string[]; pgSubjects: string[] }) => void;
   providerOverride?: BYOKConfig;
+  abortSignal?: AbortSignal;
 }) {
   let selected: string[] = [];
   let specialties: SpecialtyMeta[] = [];
@@ -349,8 +351,6 @@ export async function runSwarm({
   if (LATENCY_V2) {
     const quorum = Math.max(1, Math.ceil(selected.length * QUORUM_RATIO));
     await awaitWithQuorum(round1Promises, quorum, ROUND1_WALLCLOCK_MS);
-    // Wait for all remaining background agents to settle so they are fully included in the analysis and shown in the UI
-    await Promise.allSettled(round1Promises);
   } else {
     await Promise.all(round1Promises);
   }
@@ -359,7 +359,7 @@ export async function runSwarm({
   // ── Round 2: Peer debate — only for complex/emergency (4+ agents) ────────
   let round2Agents: Array<AgentReply & { round: 2 }> = [];
 
-  if (mode === "debate" && selected.length >= 4 && round1Agents.length >= 2) {
+  if (mode === "debate" && selected.length >= 2 && round1Agents.length >= 2) {
     onDebateStart?.();
 
     const specialtyByModel = new Map(selected.map((m, i) => [m, specialties[i]]));
@@ -386,8 +386,6 @@ export async function runSwarm({
     if (LATENCY_V2) {
       const quorum2 = Math.max(1, Math.ceil(round2Promises.length * QUORUM_RATIO));
       await awaitWithQuorum(round2Promises, quorum2, ROUND2_WALLCLOCK_MS);
-      // Wait for all remaining background agents to settle so they are fully included in the analysis and shown in the UI
-      await Promise.allSettled(round2Promises);
     } else {
       await Promise.all(round2Promises);
     }

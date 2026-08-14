@@ -1,6 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetPubMedState, searchPubMedLive } from "../../lib/rag";
 
+vi.mock("dns", () => ({
+  promises: {
+    lookup: vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]),
+  },
+}));
+
 const originalFetch = global.fetch;
 
 afterAll(() => {
