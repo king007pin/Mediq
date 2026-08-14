@@ -94,9 +94,9 @@ export function sanitizePdfText(str: string): string {
 
   return str
     // Temperature & degree units
-    .replace(/°C/g, " deg C")
-    .replace(/°F/g, " deg F")
-    .replace(/°/g, " deg")
+    .replace(/°C/g, "deg C")
+    .replace(/°F/g, "deg F")
+    .replace(/°/g, "deg")
     // Microgram & micro units (ISMP safety guidelines: use mcg/mcL instead of ug)
     .replace(/µg/g, "mcg")
     .replace(/μg/g, "mcg")

@@ -8,9 +8,9 @@ describe("sanitizePdfText", () => {
     expect(sanitizePdfText("Angle 45°")).toBe("Angle 45deg");
   });
 
-  it("sanitizes microgram dosage units µg and μg to ug", () => {
-    expect(sanitizePdfText("Administer 50µg IV")).toBe("Administer 50ug IV");
-    expect(sanitizePdfText("Dose: 100μg/dL")).toBe("Dose: 100ug/dL");
+  it("sanitizes microgram dosage units µg and μg to mcg per ISMP guidelines", () => {
+    expect(sanitizePdfText("Administer 50µg IV")).toBe("Administer 50mcg IV");
+    expect(sanitizePdfText("Dose: 100μg/dL")).toBe("Dose: 100mcg/dL");
   });
 
   it("sanitizes inequality signs ≥ and ≤ to >= and <=", () => {
