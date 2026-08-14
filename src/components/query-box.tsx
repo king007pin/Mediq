@@ -378,27 +378,34 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
 
       const nCols = hdrs.length;
       const colW = CW / nCols;
+      const tblFs = nCols >= 6 ? 8 : (nCols >= 4 ? 9 : CELL_FS);
+      const tblLineH = nCols >= 6 ? 3.8 : (nCols >= 4 ? 4.4 : CELL_LINE_H);
+
+      function calcCustomRowH(wrapped: string[][]): number {
+        const maxLines = Math.max(...wrapped.map(w => w.length), 1);
+        return Math.max(CELL_TPAD + maxLines * tblLineH + CELL_BPAD, MIN_ROW_H);
+      }
 
       // Pre-wrap all rows so we can measure height before drawing
-      doc.setFont("times", "bold"); doc.setFontSize(CELL_FS);
-      const hdrWrapped = hdrs.map(h => doc.splitTextToSize(sanitizePdfText(h), colW - CELL_HPad * 2) as string[]);
-      const hdrH = calcRowH(hdrWrapped);
+      doc.setFont("times", "bold"); doc.setFontSize(tblFs);
+      const hdrWrapped = hdrs.map(h => doc.splitTextToSize(sanitizePdfText(h.replace(/\*\*/g, "")), colW - CELL_HPad * 2) as string[]);
+      const hdrH = calcCustomRowH(hdrWrapped);
 
-      doc.setFont("times", "normal"); doc.setFontSize(CELL_FS);
+      doc.setFont("times", "normal"); doc.setFontSize(tblFs);
       const dataWrapped = drows.map(row =>
-        row.map(cell => doc.splitTextToSize(sanitizePdfText(cell || ""), colW - CELL_HPad * 2) as string[])
+        row.map(cell => doc.splitTextToSize(sanitizePdfText((cell || "").replace(/\*\*/g, "")), colW - CELL_HPad * 2) as string[])
       );
-      const dataHs = dataWrapped.map(rw => calcRowH(rw));
+      const dataHs = dataWrapped.map(rw => calcCustomRowH(rw));
 
       const totalH = hdrH + dataHs.reduce((s, h) => s + h, 0);
       y += 2;
 
       const drawTableHeader = (): number => {
         fc(TEAL); doc.rect(ML, y, CW, hdrH, "F");
-        doc.setFont("times", "bold"); doc.setFontSize(CELL_FS); tc(WHITE);
+        doc.setFont("times", "bold"); doc.setFontSize(tblFs); tc(WHITE);
         hdrWrapped.forEach((wlines, ci) => {
           wlines.forEach((wl, li) => {
-            doc.text(sanitizePdfText(wl), ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * CELL_LINE_H);
+            doc.text(sanitizePdfText(wl), ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * tblLineH);
           });
         });
         for (let ci = 1; ci < nCols; ci++) {
@@ -434,11 +441,11 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
           y += drawTableHeader();
         }
         if (ri % 2 === 0) { fc(TEAL_BG); doc.rect(ML, y, CW, rH, "F"); }
-        doc.setFont("times", "normal"); doc.setFontSize(CELL_FS);
+        doc.setFont("times", "normal"); doc.setFontSize(tblFs);
         rowWrapped.forEach((wlines, ci) => {
-          tc(ci === 0 ? DARK : MUTED);
+          tc(ci === 0 ? NAVY : DARK);
           wlines.forEach((wl, li) => {
-            doc.text(sanitizePdfText(wl), ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * CELL_LINE_H);
+            doc.text(sanitizePdfText(wl), ML + ci * colW + CELL_HPad, y + CELL_TPAD + li * tblLineH);
           });
         });
         // Row bottom border + column dividers
