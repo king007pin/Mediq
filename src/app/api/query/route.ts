@@ -65,71 +65,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Item 5: multi-query retrieval with deduplication
-  // T1.4: embed the original question in parallel with the rewrite-LLM call,
-  // then batch the rewritten queries into a single embeddings round-trip.
-  // Prior code issued N sequential single-item embed calls (~3× HTTPS RTT).
-  // T1.3: precomputeSwarmRouting fires in the same parallel block so the
-  // 2-8s router LLM call overlaps fully with embedding + rewrite.
-  const [qEmbedding, rewrittenQueries, precomputedRouting] = await Promise.all([
-    embedText(question, "query"),
-    rewriteQueryForRetrieval(question),
-    precomputeSwarmRouting(question, patientContext, labText, swarmSize ?? 10),
-  ]);
-
-  const extraQueries = rewrittenQueries.slice(1);
-  const queryEmbeddings = extraQueries.length > 0 ? await embedBatch(extraQueries, "query") : [];
-
-  const allEmbeddings = [qEmbedding, ...queryEmbeddings];
-
-  // Parallelize local vector search with real-time PubMed E-utilities search for absolute 2026 currency
-  const [allResults, liveMatches] = await Promise.all([
-    searchByVectors(allEmbeddings, topK),
-    searchPubMedLive(question, 4).catch(() => []),
-  ]);
-
-  const seen = new Set<string>();
-  const matches: Match[] = [];
-
-  // Add live 2026 PubMed guidelines first to prioritize them
-  for (const m of liveMatches) {
-    if (!seen.has(m.chunk)) {
-      seen.add(m.chunk);
-      matches.push(m);
-    }
-  }
-
-  // Add local vector DB results
-  for (const batch of allResults) {
-    for (const m of batch) {
-      if (!seen.has(m.chunk)) {
-        seen.add(m.chunk);
-        matches.push(m);
-      }
-    }
-  }
-  matches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const topMatches = matches.slice(0, topK);
-
-  if (!topMatches.length) {
-    topMatches.push({
-      chunk: "Standard Clinical Knowledge Base: Apply established medical literature, clinical practice guidelines, diagnostic criteria, and evidence-based treatment protocols.",
-      sourceTitle: "General Clinical Knowledge",
-      sourceUrl: null,
-      score: 1.0,
-    });
-  }
-
-  const pastCases = await getSimilarPastCases(qEmbedding, 2).catch(() => []);
-  const pastCasesContext =
-    pastCases.length > 0
-      ? "\n\nRelevant prior cases from knowledge base:\n" +
-        pastCases.map((c, i) => `[PC${i + 1}] Query: "${c.query}" -> Summary: ${c.consensusSnippet}`).join("\n")
-      : "";
-
-  const context = assembleContext(topMatches);
-  const contextWithMemory = context + pastCasesContext;
-
   const encoder = new TextEncoder();
   const streamAbortController = new AbortController();
   let ping: ReturnType<typeof setInterval> | null = null;
@@ -140,14 +75,79 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       }
 
-      // Send 2KB of comment padding to force CDN/Proxy buffers to flush and establish the SSE stream immediately
+      // Send 2KB of comment padding to force CDN/Proxy buffers to flush and establish the SSE stream immediately (<15ms TTFB)
       controller.enqueue(encoder.encode(":" + " ".repeat(2048) + "\n\n"));
 
       ping = setInterval(() => {
         try { controller.enqueue(encoder.encode(": ping\n\n")); } catch { /* stream closed */ }
-      }, 5000);
+      }, 3000);
 
       try {
+        send({ type: "status", message: "Manager: searching medical literature & PubMed guidelines…" });
+
+        // Item 5: multi-query retrieval with deduplication
+        // T1.4: embed the original question in parallel with the rewrite-LLM call,
+        // then batch the rewritten queries into a single embeddings round-trip.
+        // T1.3: precomputeSwarmRouting fires in the same parallel block so the
+        // 2-8s router LLM call overlaps fully with embedding + rewrite.
+        const [qEmbedding, rewrittenQueries, precomputedRouting] = await Promise.all([
+          embedText(question, "query"),
+          rewriteQueryForRetrieval(question),
+          precomputeSwarmRouting(question, patientContext, labText, swarmSize ?? 10),
+        ]);
+
+        const extraQueries = rewrittenQueries.slice(1);
+        const queryEmbeddings = extraQueries.length > 0 ? await embedBatch(extraQueries, "query") : [];
+        const allEmbeddings = [qEmbedding, ...queryEmbeddings];
+
+        // Parallelize local vector search with real-time PubMed E-utilities search for absolute 2026 currency
+        const [allResults, liveMatches] = await Promise.all([
+          searchByVectors(allEmbeddings, topK),
+          searchPubMedLive(question, 4).catch(() => []),
+        ]);
+
+        const seen = new Set<string>();
+        const matches: Match[] = [];
+
+        // Add live 2026 PubMed guidelines first to prioritize them
+        for (const m of liveMatches) {
+          if (!seen.has(m.chunk)) {
+            seen.add(m.chunk);
+            matches.push(m);
+          }
+        }
+
+        // Add local vector DB results
+        for (const batch of allResults) {
+          for (const m of batch) {
+            if (!seen.has(m.chunk)) {
+              seen.add(m.chunk);
+              matches.push(m);
+            }
+          }
+        }
+        matches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+        const topMatches = matches.slice(0, topK);
+
+        if (!topMatches.length) {
+          topMatches.push({
+            chunk: "Standard Clinical Knowledge Base: Apply established medical literature, clinical practice guidelines, diagnostic criteria, and evidence-based treatment protocols.",
+            sourceTitle: "General Clinical Knowledge",
+            sourceUrl: null,
+            score: 1.0,
+          });
+        }
+
+        const pastCases = await getSimilarPastCases(qEmbedding, 2).catch(() => []);
+        const pastCasesContext =
+          pastCases.length > 0
+            ? "\n\nRelevant prior cases from knowledge base:\n" +
+              pastCases.map((c, i) => `[PC${i + 1}] Query: "${c.query}" -> Summary: ${c.consensusSnippet}`).join("\n")
+            : "";
+
+        const context = assembleContext(topMatches);
+        const contextWithMemory = context + pastCasesContext;
+
         send({ type: "status", message: "Manager: initialising swarm…" });
 
         // BYOK: resolve user-configured provider key (e.g., OpenRouter)

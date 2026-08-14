@@ -956,6 +956,7 @@ export default function QueryBox() {
 
     const r1: AgentReply[] = [];
     const r2: AgentReply[] = [];
+    let accumulatedSynthesis = "";
 
     try {
       const res = await fetch("/api/query", {
@@ -1019,7 +1020,8 @@ export default function QueryBox() {
               setDebatePhase(false);
               setLiveStatus(payload.message as string ?? "Synthesizing final report…");
             } else if (payload.type === "synthesis_token") {
-              setSynthesisStream((prev) => prev + (payload.token as string));
+              accumulatedSynthesis += (payload.token as string);
+              setSynthesisStream(accumulatedSynthesis);
             } else if (payload.type === "done") {
               const p = payload as {
                 answer: string; agents: AgentReply[];
@@ -1068,9 +1070,9 @@ export default function QueryBox() {
       setSynthesisPhase(false);
       abortRef.current = null;
       setResult((prev) => {
-        if (!prev && synthesisStream.trim().length > 100) {
+        if (!prev && accumulatedSynthesis.trim().length > 100) {
           return {
-            answer: synthesisStream,
+            answer: accumulatedSynthesis,
             agents: r2.length > 0 ? r2 : r1,
             round1Agents: r1,
             matches: [],
