@@ -7,10 +7,8 @@
  */
 export const LATENCY_V2 = process.env.LATENCY_V2 !== "0";
 export const QUORUM_RATIO = 0.6;
-export const ROUND1_WALLCLOCK_MS = 30_000;
-// Raised 35s→50s: gives latency-hedged debate agents headroom to land before
-// the quorum cuts them (routes run maxDuration=300, so ample room remains).
-export const ROUND2_WALLCLOCK_MS = 50_000;
+export const ROUND1_WALLCLOCK_MS = 12_000;
+export const ROUND2_WALLCLOCK_MS = 14_000;
 
 export async function awaitWithQuorum<T>(
   promises: Array<Promise<T>>,

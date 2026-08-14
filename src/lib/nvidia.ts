@@ -8,7 +8,7 @@ const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
 // that motivated the old 32s no longer binds; 45s lets slow-but-valid
 // generations finish instead of degrading to a "fallback" stub. Embeddings
 // (fast endpoint) and Vision OCR (pinned) keep their own budgets.
-const CHAT_TIMEOUT_MS = Number(process.env.NVIDIA_CHAT_TIMEOUT_MS) || 45_000;
+const CHAT_TIMEOUT_MS = Number(process.env.NVIDIA_CHAT_TIMEOUT_MS) || 16_000;
 
 type NvidiaFetchInit = RequestInit & { dispatcher?: Agent };
 function nvidiaFetchInit(init: RequestInit): NvidiaFetchInit {

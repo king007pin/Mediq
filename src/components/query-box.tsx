@@ -475,16 +475,14 @@ function generateClinicalPDF(reportText: string, query: string, jsPDFClass: any,
 
     if (isHeaderCandidate(line)) {
       checkY(35); y += 3;
-      doc.setFont("times", "bold"); doc.setFontSize(14); tc(TEAL);
+      doc.setFont("times", "bold"); doc.setFontSize(13); tc(TEAL);
       let clean = line.trim().replace(/^#+\s*/, "").trim();
       if (clean.startsWith("•") || clean.startsWith("–") || clean.startsWith("-")) {
         clean = clean.slice(1).trim();
       }
-      const sClean = sanitizePdfText(clean.replace(/\*\*/g, ""));
+      const sClean = "• " + sanitizePdfText(clean.replace(/\*\*/g, "").toUpperCase());
       doc.text(sClean, ML, y);
-      const tw = doc.getTextWidth(sClean);
-      dc(TEAL); doc.setLineWidth(0.4); doc.line(ML, y + 1.1, ML + Math.min(tw, CW), y + 1.1);
-      y += 6; i++;
+      y += 6.5; i++;
       continue;
     }
 
@@ -948,6 +946,9 @@ export default function QueryBox() {
     setFeedbackGiven(false);
     setFeedbackSessionId(null);
 
+    const r1: AgentReply[] = [];
+    const r2: AgentReply[] = [];
+
     try {
       const res = await fetch("/api/query", {
         method: "POST",
@@ -967,8 +968,6 @@ export default function QueryBox() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      const r1: AgentReply[] = [];
-      const r2: AgentReply[] = [];
       let buffer = "";
 
       while (true) {
@@ -1060,6 +1059,21 @@ export default function QueryBox() {
       setDebatePhase(false);
       setSynthesisPhase(false);
       abortRef.current = null;
+      setResult((prev) => {
+        if (!prev && synthesisStream.trim().length > 100) {
+          return {
+            answer: synthesisStream,
+            agents: r2.length > 0 ? r2 : r1,
+            round1Agents: r1,
+            matches: [],
+            sessionId: null,
+            hospitalDepartments: [],
+            pgSubjects: [],
+            ddiFlags: [],
+          };
+        }
+        return prev;
+      });
     }
   }
 
